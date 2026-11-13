@@ -298,14 +298,13 @@ mod tests {
             thread::sleep(Duration::from_millis(2));
         }
     }
-    fn setup(
-        fail: bool,
-    ) -> (
+    type TestSetup = (
         Engine,
         Arc<Mutex<Vec<String>>>,
         Arc<AtomicBool>,
         Box<dyn InputSink>,
-    ) {
+    );
+    fn setup(fail: bool) -> TestSetup {
         let engine = Engine::new(|_| {});
         let log = Arc::new(Mutex::new(vec![]));
         let valid = Arc::new(AtomicBool::new(true));

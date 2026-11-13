@@ -1,9 +1,19 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
-  envPrefix: ['VITE_', 'TAURI_ENV_*'],
-  build: { target: 'es2022' },
+  server: {
+    watch: {
+      ignored: [
+        "**/src-tauri/**",
+        "**/artifacts/**",
+        "**/.impeccable/**",
+        "**/test-results/**",
+      ],
+    },
+  },
+  envPrefix: ["VITE_", "TAURI_ENV_*"],
+  build: { target: "es2022" },
 });

@@ -1,4 +1,6 @@
-use crate::model::{Combo, InputMode, Target};
+use crate::model::Combo;
+#[cfg(not(any(windows, target_os = "macos")))]
+use crate::model::{InputMode, Target};
 use serde::Serialize;
 
 pub trait InputSink: Send {

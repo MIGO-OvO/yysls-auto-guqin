@@ -27,6 +27,7 @@
     }
   },
   "bundle": {
+    "licenseFile": "../LICENSE",
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
@@ -51,13 +52,14 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "11.0",
+      "minimumSystemVersion": "13.0",
       "signingIdentity": "-",
       "infoPlist": "Info.plist"
     }
   },
   "plugins": {
     "updater": {
+      "requireSignedVersion": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDczM0UzN0U5QTAwMzlEMzcKUldRM25RT2c2VGMrYzY0Nnp5TVNFYXFLOEI4Q3NobTRXUkZlMlJTa1IvYzFoWDVsY1hnMzBXTU4K",
       "endpoints": [
         "https://github.com/MIGO-OvO/yysls-auto-guqin/releases/latest/download/latest.json"

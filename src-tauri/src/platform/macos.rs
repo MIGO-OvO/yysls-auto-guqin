@@ -196,6 +196,7 @@ struct MacInput {
     down: Vec<(u16, u64)>,
     flags: u64,
     last_identity: Instant,
+    first_press: bool,
 }
 
 pub fn connect(target: Target, mode: InputMode) -> Result<Box<dyn InputSink>, String> {
@@ -205,17 +206,13 @@ pub fn connect(target: Target, mode: InputMode) -> Result<Box<dyn InputSink>, St
     if !exists(&target) || target.pid == std::process::id() {
         return Err("目标窗口已关闭或不可用于演奏".into());
     }
-    if mode != InputMode::Background
-        && unsafe { CGEventSourceFlagsState(1) } & (SHIFT | CTRL | ALT) != 0
-    {
-        return Err("请先松开 Shift、Ctrl、Option".into());
-    }
     Ok(Box::new(MacInput {
         target,
         mode,
         down: vec![],
         flags: 0,
         last_identity: Instant::now(),
+        first_press: true,
     }))
 }
 impl MacInput {
@@ -255,6 +252,13 @@ impl InputSink for MacInput {
         Ok(())
     }
     fn press(&mut self, combo: &Combo) -> Result<(), String> {
+        if self.first_press
+            && self.mode != InputMode::Background
+            && unsafe { CGEventSourceFlagsState(1) } & (SHIFT | CTRL | ALT) != 0
+        {
+            return Err("请先松开 Shift、Ctrl、Option".into());
+        }
+        self.first_press = false;
         let mut keys = vec![];
         if combo.ctrl {
             keys.push((59, CTRL));

@@ -7,15 +7,18 @@
 | 范围 | 状态 | 证据 |
 | --- | --- | --- |
 | TypeScript 构建 | 通过 | `npm run build` |
-| 乐谱、MIDI、映射、TXT 与更新状态 | 通过 | `npm test`，11 项 |
-| Rust 时序、暂停、停止与异常清理 | 正在执行 | `cargo test` |
-| 钢琴卷交互与窗口尺寸 | 正在执行 | Playwright |
-| Win32 完整 36 键消息 | 待执行 | 独立接收进程 |
+| 乐谱、MIDI、映射、TXT、更新状态与发布清单 | 通过 | `npm test`，12 项 |
+| Rust 时序、暂停、停止与异常清理 | 通过 | 8 项模型与引擎测试 |
+| 更新签名与篡改拒绝 | 通过 | Rust 使用真实签名测试文件校验 |
+| 钢琴卷交互与窗口尺寸 | 通过 | 4 项 Playwright 测试，包含键盘编辑、拖动、撤销、导出、保存恢复、试听、深浅主题、950×650 / 1440×920 |
+| Win32 完整 36 键消息 | 通过 | 独立进程收到 37 个音符 / 110 条按下抬起消息，含额外 Ctrl+Alt+Shift+F12；前台窗口未变化 |
 | Windows 桌面原生与安装包 | 待执行 | Tauri / NSIS |
 | macOS arm64 / Intel 构建 | 待执行 | GitHub Actions |
 | Windows 游戏前台与后台接收 | 未验证 | 当前环境没有运行游戏 |
 | macOS 权限、游戏前台与后台接收 | 未验证 | 需要 macOS 与游戏 |
 | Developer ID / Apple 公证 / Authenticode | 未配置 | 需要维护者证书 |
+
+Win32 测试通过真实窗口消息循环记录按键、扫描码和抬起位。它验证发送与普通窗口接收，不证明游戏支持；接收记录位于本机构建的 `artifacts/windows-input.json`。
 
 ## 游戏验收步骤
 

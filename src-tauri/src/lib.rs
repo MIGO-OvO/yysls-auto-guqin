@@ -53,6 +53,7 @@ fn register(app: &tauri::AppHandle, first: Shortcut, second: Shortcut) -> Result
     if let Err(error) = app.global_shortcut().on_shortcut(second, |app, _, event| {
         if event.state == ShortcutState::Pressed {
             app.state::<Engine>().stop();
+            let _ = app.emit("stop-preview", ());
         }
     }) {
         let _ = app.global_shortcut().unregister(first);

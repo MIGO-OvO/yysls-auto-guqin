@@ -6,11 +6,11 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::{CloseHandle, FILETIME, HWND, LPARAM},
-    Media::Multimedia::{timeBeginPeriod, timeEndPeriod},
+    Media::{timeBeginPeriod, timeEndPeriod},
     Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY},
     System::Threading::{
-        GetCurrentProcess, GetCurrentProcessId, GetProcessTimes, OpenProcess, OpenProcessToken,
-        QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+        GetCurrentProcess, GetCurrentProcessId, GetExitCodeProcess, GetProcessTimes, OpenProcess,
+        OpenProcessToken, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     },
     UI::{
         Input::KeyboardAndMouse::{
@@ -108,7 +108,7 @@ pub fn list_targets() -> Result<Vec<Target>, String> {
         });
         1
     }
-    let mut targets = vec![];
+    let mut targets: Vec<Target> = vec![];
     if unsafe { EnumWindows(Some(callback), &mut targets as *mut _ as LPARAM) } == 0 {
         return Err(format!("读取窗口失败：{}", std::io::Error::last_os_error()));
     }
@@ -126,6 +126,9 @@ struct WindowsInput {
     mode: InputMode,
     down: Vec<u16>,
     alt: bool,
+    process_handle: usize,
+    timer_active: bool,
+    first_press: bool,
 }
 
 pub fn connect(target: Target, mode: InputMode) -> Result<Box<dyn InputSink>, String> {
@@ -134,19 +137,28 @@ pub fn connect(target: Target, mode: InputMode) -> Result<Box<dyn InputSink>, St
         mode,
         down: vec![],
         alt: false,
+        process_handle: 0,
+        timer_active: false,
+        first_press: true,
     };
-    input.check(false)?;
-    if input.mode != InputMode::Background
-        && unsafe {
-            [VK_CONTROL, VK_SHIFT, VK_MENU]
-                .iter()
-                .any(|&key| GetAsyncKeyState(key as i32) < 0)
-        }
-    {
-        return Err("请松开 Ctrl、Shift、Alt 后再开始演奏".into());
+    let expected = input
+        .target
+        .id
+        .split(':')
+        .nth(1)
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    if expected != 0 && process(input.target.pid).1 != expected {
+        return Err("目标进程已重新启动，请重新选择窗口".into());
     }
+    input.process_handle =
+        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, input.target.pid) } as usize;
+    if input.process_handle == 0 {
+        return Err("无法确认目标进程身份，请检查游戏与工具的权限".into());
+    }
+    input.check(false)?;
     unsafe {
-        timeBeginPeriod(1);
+        input.timer_active = timeBeginPeriod(1) == 0;
     }
     Ok(Box::new(input))
 }
@@ -210,14 +222,10 @@ impl InputSink for WindowsInput {
         if unsafe { IsWindow(window) } == 0 || pid(window) != self.target.pid {
             return Err("目标窗口已关闭或身份已变化，演奏已停止".into());
         }
-        let expected = self
-            .target
-            .id
-            .split(':')
-            .nth(1)
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
-        if expected != 0 && process(self.target.pid).1 != expected {
+        let mut exit_code = 0;
+        if unsafe { GetExitCodeProcess(self.process_handle as _, &mut exit_code) } == 0
+            || exit_code != 259
+        {
             return Err("目标进程已重新启动，请重新选择窗口".into());
         }
         if self.target.pid == unsafe { GetCurrentProcessId() } {
@@ -229,6 +237,17 @@ impl InputSink for WindowsInput {
         Ok(())
     }
     fn press(&mut self, combo: &Combo) -> Result<(), String> {
+        if self.first_press
+            && self.mode != InputMode::Background
+            && unsafe {
+                [VK_CONTROL, VK_SHIFT, VK_MENU]
+                    .iter()
+                    .any(|&key| GetAsyncKeyState(key as i32) < 0)
+            }
+        {
+            return Err("请松开 Ctrl、Shift、Alt 后再开始演奏".into());
+        }
+        self.first_press = false;
         let mut keys = vec![];
         if combo.ctrl {
             keys.push(VK_CONTROL);
@@ -292,7 +311,12 @@ impl Drop for WindowsInput {
             }
         }
         unsafe {
-            timeEndPeriod(1);
+            if self.timer_active {
+                timeEndPeriod(1);
+            }
+            if self.process_handle != 0 {
+                CloseHandle(self.process_handle as _);
+            }
         }
     }
 }
