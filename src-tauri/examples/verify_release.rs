@@ -13,10 +13,16 @@ fn main() {
                     let updater = handle.updater_builder().version_comparator(|_, _| true).build()?;
                     let update = updater.check().await?.ok_or("No release available")?;
                     let bytes = update.download(|_, _| {}, || {}).await?;
-                    println!("{}", serde_json::json!({"version":update.version,"downloadedBytes":bytes.len(),"signatureVerified":true,"installed":false}));
-                    Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+                    Ok::<_, Box<dyn std::error::Error + Send + Sync>>(serde_json::json!({"version":update.version,"downloadedBytes":bytes.len(),"signatureVerified":true,"installed":false}))
                 }.await;
-                if let Err(error) = result { eprintln!("{error}"); handle.exit(1); } else { handle.exit(0); }
+                let report = match &result {
+                    Ok(value) => value.clone(),
+                    Err(error) => serde_json::json!({"error":error.to_string(),"signatureVerified":false,"installed":false}),
+                };
+                std::fs::create_dir_all("artifacts").expect("Create verification output directory");
+                std::fs::write("artifacts/update-verification.json", report.to_string()).expect("Write verification result");
+                println!("{report}");
+                handle.exit(if result.is_ok() { 0 } else { 1 });
             });
             Ok(())
         })

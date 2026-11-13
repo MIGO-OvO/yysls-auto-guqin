@@ -56,17 +56,29 @@ jobs:
             if [ -z "${!name}" ]; then unset "$name"; fi
           done
           npm run tauri -- build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked -j 2
-      - name: Name update archives by architecture
-        if: runner.os == 'macOS'
+      - name: Name release assets
         shell: bash
         run: |
+          version=$(node -p "require('./package.json').version")
+          prefix="yysls-auto-guqin_$version"
+          bundle='src-tauri/target/${{ matrix.target }}/release/bundle'
+          if [ '${{ runner.os }}' = 'Windows' ]; then
+            for file in "$bundle"/nsis/*.exe; do
+              named="$bundle/nsis/${prefix}_x64-setup.exe"
+              mv "$file" "$named"
+              mv "$file.sig" "$named.sig"
+            done
+            exit 0
+          fi
           suffix=x64
           if [ '${{ matrix.target }}' = 'aarch64-apple-darwin' ]; then suffix=aarch64; fi
-          bundle='src-tauri/target/${{ matrix.target }}/release/bundle/macos'
-          for file in "$bundle"/*.app.tar.gz; do
-            named="${file%.app.tar.gz}_${suffix}.app.tar.gz"
+          for file in "$bundle"/macos/*.app.tar.gz; do
+            named="$bundle/macos/${prefix}_${suffix}.app.tar.gz"
             mv "$file" "$named"
             mv "$file.sig" "$named.sig"
+          done
+          for file in "$bundle"/dmg/*.dmg; do
+            mv "$file" "$bundle/dmg/${prefix}_${suffix}.dmg"
           done
       - uses: actions/upload-artifact@v4
         with:

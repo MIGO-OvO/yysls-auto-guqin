@@ -65,6 +65,16 @@ Windows 以普通权限、当前用户安装。游戏提升权限时，手动以
 
 在多平台构建全部通过前，工作流不会把半套更新发布为 latest。
 
+发布资产统一使用 `yysls-auto-guqin_版本_架构` 的 ASCII 文件名。GitHub 会改写部分非 ASCII 文件名；清单生成器会拒绝这类名称，避免下载地址失配。
+
+在项目根目录可运行真实更新下载检查：
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --locked --example verify_release --features tauri/custom-protocol
+```
+
+检查器允许下载同版本，使用应用内置公钥验证包及签名版本，并将结果写入 `artifacts/update-verification.json`；它不会安装更新。Windows 示例程序单独嵌入 Common Controls 6 清单，主应用的清单由 Tauri 生成。
+
 ## 输入 API 依据
 
 - [Microsoft：WM_KEYDOWN 位定义](https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-keydown)

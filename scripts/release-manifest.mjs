@@ -53,6 +53,10 @@ export async function releaseManifest(
     throw new Error("Expected both macOS disk images");
   if (new Set(files.map((file) => path.basename(file))).size !== files.length)
     throw new Error("Release asset names collide");
+  if (files.some((file) => !/^[A-Za-z0-9._-]+$/.test(path.basename(file))))
+    throw new Error(
+      "Release assets require ASCII names; GitHub rewrites other names",
+    );
   return {
     manifest: { version, notes, pub_date: new Date().toISOString(), platforms },
     files,
