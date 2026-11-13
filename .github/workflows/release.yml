@@ -1,0 +1,99 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - os: macos-15
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-${{ matrix.target }}
+      - run: npm ci
+      - run: npm run check
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Build signed updater bundles
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run tauri -- build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked -j 2
+      - name: Name update archives by architecture
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          suffix=x64
+          if [ '${{ matrix.target }}' = 'aarch64-apple-darwin' ]; then suffix=aarch64; fi
+          bundle='src-tauri/target/${{ matrix.target }}/release/bundle/macos'
+          for file in "$bundle"/*.app.tar.gz; do
+            named="${file%.app.tar.gz}_${suffix}.app.tar.gz"
+            mv "$file" "$named"
+            mv "$file.sig" "$named.sig"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: artifacts
+      - name: Validate tag and generate update manifest
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          test "$GITHUB_REF_NAME" = "v$version"
+          node scripts/release-manifest.mjs artifacts "$GITHUB_REPOSITORY" "$version" docs/RELEASE_NOTES.md
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "燕云琴笺 $GITHUB_REF_NAME" --notes-file docs/RELEASE_NOTES.md --draft
+          find artifacts -type f \( -name '*.exe' -o -name '*.sig' -o -name '*.dmg' -o -name '*.tar.gz' -o -name 'latest.json' \) -print0 | xargs -0 gh release upload "$GITHUB_REF_NAME" --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest

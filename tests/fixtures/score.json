@@ -1,0 +1,9 @@
+{
+  "id": "fixture", "title": "兼容性测试", "cols": 16,
+  "timing": {"bpm":120,"gridFactor":8,"defaultLen":1},
+  "notes": [
+    {"id":"a","midi":60,"col":0,"len":4},
+    {"id":"b","midi":61,"col":1,"len":2},
+    {"id":"c","midi":63,"col":4,"len":1}
+  ]
+}
