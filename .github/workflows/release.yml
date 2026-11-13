@@ -20,9 +20,6 @@ jobs:
           - os: macos-15
             target: aarch64-apple-darwin
             bundles: app,dmg
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            bundles: app,dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -70,15 +67,13 @@ jobs:
             done
             exit 0
           fi
-          suffix=x64
-          if [ '${{ matrix.target }}' = 'aarch64-apple-darwin' ]; then suffix=aarch64; fi
           for file in "$bundle"/macos/*.app.tar.gz; do
-            named="$bundle/macos/${prefix}_${suffix}.app.tar.gz"
+            named="$bundle/macos/${prefix}_aarch64.app.tar.gz"
             mv "$file" "$named"
             mv "$file.sig" "$named.sig"
           done
           for file in "$bundle"/dmg/*.dmg; do
-            mv "$file" "$bundle/dmg/${prefix}_${suffix}.dmg"
+            mv "$file" "$bundle/dmg/${prefix}_aarch64.dmg"
           done
       - uses: actions/upload-artifact@v4
         with:

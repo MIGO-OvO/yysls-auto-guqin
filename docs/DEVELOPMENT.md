@@ -16,6 +16,8 @@ Rust 演奏线程以绝对起点计时，暂停时间从时钟排除；事件延
 
 ## 本机构建
 
+支持目标固定为 Windows x64（x86_64-pc-windows-msvc）和 macOS Apple Silicon（aarch64-apple-darwin）。后续不增加 macOS Intel 构建、安装包或更新目标。
+
 Windows 需要 Visual Studio C++ Build Tools、Windows SDK、WebView2。macOS 需要 Xcode Command Line Tools。
 
 ```powershell
@@ -64,7 +66,7 @@ NSIS 保留简中和英文文本，关闭额外语言选择对话框。语言选
 1. 更新 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`Cargo.lock`、`tauri.conf.json` 的版本及 `docs/RELEASE_NOTES.md`。
 2. 运行格式、编译、单元测试、UI 测试及原生冒烟。记录与游戏实测的区别。
 3. 提交并推送到 `main`，再推送对应的 `vX.Y.Z` 标签。
-4. Release 工作流构建三平台；发布阶段要求三份更新包、各自签名及两份 DMG 全部存在，资产文件名不得冲突。
+4. Release 工作流构建两个目标；发布阶段要求两份更新包、各自签名及 Apple Silicon DMG 全部存在，资产文件名不得冲突。
 5. 检查 Release 的 `latest.json`、签名和下载链接；从旧版本验证检查、下载、签名、确认安装及重新启动。
 
 在多平台构建全部通过前，工作流不会把半套更新发布为 latest。

@@ -6,7 +6,7 @@
 
 web
 
-Tauri 桌面应用，面向 Windows x64 与 macOS Apple Silicon / Intel。
+Tauri 桌面应用，仅支持 Windows x64 与 macOS Apple Silicon。后续开发、构建、发布和自动更新不再支持 macOS Intel。
 
 ## Stack
 

@@ -17,14 +17,13 @@ it("publishes only a complete matrix with unique asset names and signatures", as
   for (const [dir, name] of [
     ["win", "guqin.exe"],
     ["arm", "guqin_aarch64.app.tar.gz"],
-    ["intel", "guqin_x64.app.tar.gz"],
   ]) {
     const folder = path.join(root, dir);
     await mkdir(folder);
     await writeFile(path.join(folder, name), "fixture");
     await writeFile(path.join(folder, name + ".sig"), sig);
     if (dir !== "win")
-      await writeFile(path.join(folder, `guqin_${dir}.dmg`), "fixture");
+      await writeFile(path.join(folder, "guqin_aarch64.dmg"), "fixture");
   }
   const { manifest, files } = await releaseManifest(
     root,
@@ -32,11 +31,20 @@ it("publishes only a complete matrix with unique asset names and signatures", as
     "0.1.0",
     "notes",
   );
-  expect(Object.keys(manifest.platforms)).toHaveLength(3);
-  expect(files).toHaveLength(8);
+  expect(Object.keys(manifest.platforms)).toEqual([
+    "windows-x86_64",
+    "darwin-aarch64",
+  ]);
+  expect(files).toHaveLength(5);
   expect(manifest.platforms["windows-x86_64"].url).toContain("/guqin.exe");
+  const intel = path.join(root, "arm", "guqin_x64.app.tar.gz");
+  await writeFile(intel, "unsupported");
+  await expect(releaseManifest(root, "owner/repo", "0.1.0")).rejects.toThrow(
+    "macOS Intel",
+  );
+  await rm(intel);
   await rename(
-    path.join(root, "arm", "guqin_arm.dmg"),
+    path.join(root, "arm", "guqin_aarch64.dmg"),
     path.join(root, "arm", "琴笺.dmg"),
   );
   await expect(releaseManifest(root, "owner/repo", "0.1.0")).rejects.toThrow(

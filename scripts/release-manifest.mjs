@@ -22,12 +22,19 @@ export async function releaseManifest(
     }
   }
   await scan(directory);
+  if (
+    all.some((file) =>
+      /_(?:x64|x86_64)\.(?:app\.tar\.gz(?:\.sig)?|dmg)$/.test(
+        path.basename(file),
+      ),
+    )
+  )
+    throw new Error("macOS Intel artifacts are not supported");
   const platforms = {};
   const files = [];
   for (const [platform, pattern] of [
     ["windows-x86_64", /\.exe$/i],
     ["darwin-aarch64", /_aarch64\.app\.tar\.gz$/],
-    ["darwin-x86_64", /_x64\.app\.tar\.gz$/],
   ]) {
     const candidates = all.filter((file) => pattern.test(path.basename(file)));
     if (candidates.length !== 1)
@@ -49,8 +56,8 @@ export async function releaseManifest(
     files.push(file, file + ".sig");
   }
   files.push(...all.filter((file) => /\.dmg$/i.test(file)));
-  if (files.filter((f) => f.endsWith(".dmg")).length !== 2)
-    throw new Error("Expected both macOS disk images");
+  if (files.filter((f) => f.endsWith(".dmg")).length !== 1)
+    throw new Error("Expected one Apple Silicon disk image");
   if (new Set(files.map((file) => path.basename(file))).size !== files.length)
     throw new Error("Release asset names collide");
   if (files.some((file) => !/^[A-Za-z0-9._-]+$/.test(path.basename(file))))

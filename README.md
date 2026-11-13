@@ -2,7 +2,7 @@
 
 《燕云十六声》36 键自由演奏工作台。编排、试听与游戏演奏在同一应用完成。
 
-面向 Windows x64 与 macOS 13 及以上版本（Apple Silicon / Intel）。
+支持 Windows x64 与 macOS 13 及以上的 Apple Silicon 设备。macOS Intel 不再提供构建、安装包与更新。
 
 默认米色工作台，松绿点缀，淡墨远山画作随应用离线分发。
 
@@ -63,7 +63,7 @@ JSON 导出保留 `cols`、`timing` 和音符的 `col/len/midi/name/keys` 字段
 
 启动时可检查 GitHub Releases，也可在设置中手动检查。更新面板展示版本、日志和下载进度；下载并校验签名后，由用户确认安装与重启。
 
-推送 `v*` 标签会运行 GitHub Actions，分别构建 Windows x64 NSIS、macOS Apple Silicon 和 Intel 的 DMG 与签名更新包。所有目标构建成功后，工作流生成 `latest.json` 并发布完整 Release。更新公钥随应用分发，私钥放在 GitHub Secrets。
+推送 `v*` 标签会运行 GitHub Actions，构建 Windows x64 NSIS、macOS Apple Silicon DMG 与各自的签名更新包。两个目标构建成功后，工作流生成 `latest.json` 并发布完整 Release。更新公钥随应用分发，私钥放在 GitHub Secrets。
 
 Tauri 更新签名与系统应用签名是两套机制。当前 macOS 使用 ad-hoc 签名；Developer ID 签名、公证及 Windows Authenticode 需要维护者的证书。配置方法见[开发说明](docs/DEVELOPMENT.md)。
 

@@ -1,6 +1,6 @@
 # 验证记录
 
-2026-11-13：0.1.2 的[三平台自动发布](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43387077797)、[Windows 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43389307092)和[macOS 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43389307089)均通过。0.1.4 已通过旧主题迁移回归及五项界面测试，安装包联测随正式发布执行。
+2026-11-13：0.1.3 的[自动发布](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43391909298)、[Windows 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43395262116)和[macOS 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43395262135)均通过。0.1.5 起仅维护 Windows x64 与 macOS Apple Silicon；旧主题迁移已通过五项界面测试，正式包联测随发布执行。
 
 ## 当前记录
 
@@ -16,8 +16,8 @@
 | Windows 安装包与程序启动                  | 通过   | 0.1.2 静默安装返回 0，程序版本核对通过                                                                                   |
 | Windows 原生 UI 联测                      | 通过   | 已安装程序通过界面向独立窗口演奏 Q / Shift+Q / Ctrl+E，收到 10 条消息；进度、曲库重载和快捷键冲突校验通过                |
 | macOS arm64 源码构建与测试                | 通过   | 源码 CI，含 Clippy                                                                                                       |
-| macOS arm64 / Intel 安装包                | 通过   | 0.1.2 两份应用实际启动、读写曲库，核对版本与 Mach-O 架构，并通过 ad-hoc 代码签名检查                                     |
-| 三平台真实更新下载                        | 通过   | 公开 latest.json → 0.1.2，Windows 与两种 macOS 实际下载并通过 Tauri 内置公钥及签名版本校验                               |
+| macOS Apple Silicon 安装包               | 通过   | 0.1.3 应用实际启动、读写曲库，核对版本与 Mach-O 架构，并通过 ad-hoc 代码签名检查                                      |
+| Windows / Apple Silicon 真实更新下载     | 通过   | 公开 latest.json → 0.1.3，两种系统实际下载并通过 Tauri 内置公钥及签名版本校验                                         |
 | Windows 更新安装与自动重启                | 通过   | 0.1.0 → 0.1.2；展示日志和进度，取消安装后继续运行，确认后安装、自动重启并保留曲库                                        |
 | macOS 更新安装与重启                      | 未验收 | 已验证真实更新下载及验签，安装流程需要单独核对                                                                           |
 | Windows 游戏前台与后台接收                | 未验证 | 尚未进行游戏内逐音与后台切换核对                                                                                         |
