@@ -126,6 +126,29 @@ describe("legacy formats and a shared timeline", () => {
       "第 1 行",
     );
   });
+  it("round trips a one-millisecond command at the slowest grid", () => {
+    const timing = { bpm: 30, gridFactor: 4, defaultLen: 1 };
+    const { score } = importCommands("KEY F12 1", "one ms", timing);
+    expect(score.notes[0].len).toBe(0.0005);
+    expect(
+      schedule(importJson(exportJson(score), "one ms").score).notes[0].holdMs,
+    ).toBe(1);
+    for (const bpm of [30, 83, 300]) {
+      const incoming = importCommands("KEY F12 1", "incoming", {
+        ...timing,
+        bpm,
+        gridFactor: 32,
+      }).score;
+      const base = { ...emptyScore(), timing };
+      const mixed = appendScore(base, incoming);
+      expect(
+        schedule(importJson(exportJson(mixed), "mixed").score).notes[0].holdMs,
+      ).toBe(1);
+    }
+    expect(() =>
+      importJson('{"notes":[{"midi":60,"col":0,"len":0}]}', "invalid"),
+    ).toThrow("音长");
+  });
   it("limits ordinary holds and selects the highest same-column melody", () => {
     const { score } = importJson(JSON.stringify(fixture), "test");
     score.notes.push({ ...score.notes[0], id: "high", midi: 83, keys: "U" });

@@ -139,7 +139,8 @@ impl Score {
         let mut ids = std::collections::HashSet::new();
         for n in &ordered {
             if !finite_range(n.col, 0.0, 1_000_000.0)
-                || !finite_range(n.len, 0.001, 32000.0)
+                || !finite_range(n.len, 0.0, 32000.0)
+                || n.len == 0.0
                 || n.id.is_empty()
                 || !ids.insert(&n.id)
             {
@@ -313,5 +314,19 @@ mod tests {
             assert_eq!(plan.notes[0].hold_ms, 6000);
             assert_eq!(plan.notes[1].hold_ms, 60000);
         }
+    }
+    #[test]
+    fn one_millisecond_command_survives_slowest_grid() {
+        let mut s = score();
+        s.source = Some("commands".into());
+        s.timing.bpm = 30.0;
+        s.timing.grid_factor = 4;
+        s.notes.truncate(1);
+        s.notes[0].len = 0.0005;
+        assert_eq!(s.compile(0.0).unwrap().notes[0].hold_ms, 1);
+        s.notes[0].len -= f64::EPSILON;
+        assert_eq!(s.compile(0.0).unwrap().notes[0].hold_ms, 1);
+        s.notes[0].len = 0.0;
+        assert!(s.compile(0.0).is_err());
     }
 }

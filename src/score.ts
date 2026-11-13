@@ -241,7 +241,11 @@ function number(
 ): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < min || n > max)
-    throw new Error(`${label}需在 ${min}–${max} 之间`);
+    throw new Error(
+      min === Number.MIN_VALUE
+        ? `${label}需大于 0，且不超过 ${max}`
+        : `${label}需在 ${min}–${max} 之间`,
+    );
   return n;
 }
 
@@ -283,7 +287,7 @@ export function importJson(text: string, title: string): ImportResult {
       id: uid(),
       midi,
       col: number(n.col, 0, 1000000, "位置"),
-      len: number(n.len ?? 1, 0.001, 32000, "音长"),
+      len: number(n.len ?? 1, Number.MIN_VALUE, 32000, "音长"),
       keys,
       fromCommands,
     };
