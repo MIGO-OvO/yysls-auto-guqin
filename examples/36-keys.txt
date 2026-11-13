@@ -1,0 +1,73 @@
+# C3–B5：每音按住 150ms，间隔 200ms，共 36 音。
+KEY Z 150
+200ms
+KEY Shift+Z 150
+200ms
+KEY X 150
+200ms
+KEY Ctrl+C 150
+200ms
+KEY C 150
+200ms
+KEY V 150
+200ms
+KEY Shift+V 150
+200ms
+KEY B 150
+200ms
+KEY Shift+B 150
+200ms
+KEY N 150
+200ms
+KEY Ctrl+M 150
+200ms
+KEY M 150
+200ms
+KEY A 150
+200ms
+KEY Shift+A 150
+200ms
+KEY S 150
+200ms
+KEY Ctrl+D 150
+200ms
+KEY D 150
+200ms
+KEY F 150
+200ms
+KEY Shift+F 150
+200ms
+KEY G 150
+200ms
+KEY Shift+G 150
+200ms
+KEY H 150
+200ms
+KEY Ctrl+J 150
+200ms
+KEY J 150
+200ms
+KEY Q 150
+200ms
+KEY Shift+Q 150
+200ms
+KEY W 150
+200ms
+KEY Ctrl+E 150
+200ms
+KEY E 150
+200ms
+KEY R 150
+200ms
+KEY Shift+R 150
+200ms
+KEY T 150
+200ms
+KEY Shift+T 150
+200ms
+KEY Y 150
+200ms
+KEY Ctrl+U 150
+200ms
+KEY U 150
+200ms
