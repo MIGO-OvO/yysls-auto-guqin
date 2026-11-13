@@ -33,8 +33,15 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - name: Build isolated input receiver
+        id: receiver
         if: matrix.scenario == 'engine'
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --test windows_input --no-run
+        shell: pwsh
+        run: |
+          $events = cargo test --manifest-path src-tauri/Cargo.toml --locked --test windows_input --no-run --message-format=json
+          if ($LASTEXITCODE -ne 0) { throw 'Receiver build failed' }
+          $receiver = $events | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.reason -eq 'compiler-artifact' -and $_.target.name -eq 'windows_input' -and $_.executable } | Select-Object -Last 1
+          if (-not $receiver) { throw 'Cargo did not report the receiver executable' }
+          "path=$($receiver.executable)" >> $env:GITHUB_OUTPUT
       - name: Download published installer
         id: installer
         env:
@@ -52,7 +59,7 @@ jobs:
           "expected=$($latest.tagName.Substring(1))" >> $env:GITHUB_OUTPUT
       - name: Verify installed desktop application
         shell: pwsh
-        run: ./scripts/windows-native-smoke.ps1 -Installer '${{ steps.installer.outputs.path }}' -Scenario '${{ matrix.scenario }}' -ExpectedVersion '${{ steps.installer.outputs.expected }}'
+        run: ./scripts/windows-native-smoke.ps1 -Installer '${{ steps.installer.outputs.path }}' -Scenario '${{ matrix.scenario }}' -ExpectedVersion '${{ steps.installer.outputs.expected }}' -ReceiverExecutable '${{ steps.receiver.outputs.path }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

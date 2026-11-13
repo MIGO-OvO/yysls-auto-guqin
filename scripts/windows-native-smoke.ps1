@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory)][string]$Installer,
   [ValidateSet('engine', 'update')][string]$Scenario = 'engine',
-  [Parameter(Mandatory)][string]$ExpectedVersion
+  [Parameter(Mandatory)][string]$ExpectedVersion,
+  [string]$ReceiverExecutable
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) {
@@ -26,8 +27,7 @@ try {
   }
   if (-not $ready) { throw 'Installed WebView did not become ready.' }
   if ($Scenario -eq 'engine') {
-    $receiverBinary = Get-ChildItem 'src-tauri/target/debug/deps/windows_input-*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $receiverBinary) { throw 'Input receiver test executable is missing.' }
+    $receiverBinary = Get-Item -LiteralPath $ReceiverExecutable
     $env:GUQIN_RECEIVER_TITLE = "Guqin CI receiver $env:GITHUB_RUN_ID"
     $env:GUQIN_RECEIVER_LOG = Join-Path (Get-Location).Path 'artifacts/native-receiver.jsonl'
     $receiverProcess = Start-Process -FilePath $receiverBinary.FullName -ArgumentList @('--ignored', '--exact', 'receiver_child', '--nocapture') -WindowStyle Hidden -PassThru -RedirectStandardOutput 'artifacts/native-receiver.stdout.log' -RedirectStandardError 'artifacts/native-receiver.stderr.log'
@@ -40,7 +40,23 @@ try {
   if ($installedVersion -ne $ExpectedVersion) { throw "Installed $installedVersion, expected $ExpectedVersion." }
   [ordered]@{ scenario=$Scenario; version=$installedVersion; installationExit=0 } | ConvertTo-Json | Set-Content -Encoding utf8 "artifacts/native-$Scenario-install.json"
 } finally {
-  Get-Process yysls-auto-guqin -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $installedApp } | Select-Object Id,MainWindowTitle,Responding,Path | ConvertTo-Json | Set-Content -Encoding utf8 "artifacts/native-$Scenario-processes.json"
+  $diagnostics = [ordered]@{
+    installedVersion = if (Test-Path -LiteralPath $installedApp) { (Get-Item -LiteralPath $installedApp).VersionInfo.ProductVersion } else { $null }
+    processes = @(Get-Process yysls-auto-guqin -ErrorAction SilentlyContinue | Select-Object Id,MainWindowTitle,Responding,Path)
+    installers = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*/UPDATE*' -and $_.ExecutablePath -like "$env:TEMP\*" } | Select-Object ProcessId,ExecutablePath,CommandLine)
+  }
+  $diagnostics | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 "artifacts/native-$Scenario-processes.json"
+  try {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+    $bitmap.Save((Join-Path (Get-Location).Path "artifacts/native-$Scenario-desktop.png"))
+    $graphics.Dispose()
+    $bitmap.Dispose()
+  } catch { Write-Warning "CI desktop screenshot unavailable: $_" }
   if ($receiverProcess -and -not $receiverProcess.HasExited) {
     Stop-Process -Id $receiverProcess.Id -ErrorAction SilentlyContinue
   }

@@ -70,6 +70,20 @@ try {
   await dialog.getByRole("button", { name: "稍后", exact: true }).click();
   assert.equal(await page.getByRole("dialog").count(), 0);
   assert.equal(page.isClosed(), false);
+  await writeFile(
+    "artifacts/native-update-request.json",
+    JSON.stringify(
+      {
+        marker,
+        expectedVersion,
+        confirmationRequired: true,
+        cancelPreservedApplication: true,
+        progress,
+      },
+      null,
+      2,
+    ),
+  );
   await page.getByRole("button", { name: "安装并重启", exact: true }).click();
   await page
     .getByRole("dialog")
