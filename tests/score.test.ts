@@ -330,4 +330,35 @@ describe("MIDI import", () => {
       importMidi(new Uint8Array(writeMidi(midi)), "bad", emptyScore().timing),
     ).toThrow("SMPTE");
   });
+  it("converts all 88 piano keys into playable notes while retaining pitch classes", () => {
+    const midi = make();
+    midi.tracks[0] = [];
+    midi.tracks[1] = Array.from({ length: 88 }, (_, i) => [
+      {
+        deltaTime: 0,
+        type: "noteOn" as const,
+        channel: 0,
+        noteNumber: 21 + i,
+        velocity: 80,
+      },
+      {
+        deltaTime: 480,
+        type: "noteOff" as const,
+        channel: 0,
+        noteNumber: 21 + i,
+        velocity: 0,
+      },
+    ]).flat();
+    const { score } = importMidi(
+      new Uint8Array(writeMidi(midi)),
+      "88-key piano",
+      emptyScore().timing,
+    );
+    expect(score.notes).toHaveLength(88);
+    expect(score.notes.every((n, i) =>
+      n.midi !== null && n.midi >= 48 && n.midi <= 83 &&
+      n.midi % 12 === (21 + i) % 12 && n.col === i * 2 && n.len === 2,
+    )).toBe(true);
+    expect(schedule(score).notes.every((n) => pitches.some((p) => p.keys === n.keys))).toBe(true);
+  });
 });

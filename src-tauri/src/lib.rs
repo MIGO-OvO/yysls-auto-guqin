@@ -92,6 +92,26 @@ fn configure_shortcuts(
     Ok(())
 }
 
+#[tauri::command]
+fn set_shortcut_recording(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Hotkeys>,
+    recording: bool,
+) -> Result<(), String> {
+    let current = state.0.lock().unwrap();
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| e.to_string())?;
+    if !recording && !current.0.is_empty() {
+        register(
+            &app,
+            current.0.parse().map_err(|_| "演奏快捷键格式无效")?,
+            current.1.parse().map_err(|_| "停止快捷键格式无效")?,
+        )?;
+    }
+    Ok(())
+}
+
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -159,6 +179,7 @@ pub fn run() {
             resume,
             stop,
             configure_shortcuts,
+            set_shortcut_recording,
             storage::load_workspace,
             storage::save_workspace
         ])

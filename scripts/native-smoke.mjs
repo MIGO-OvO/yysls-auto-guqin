@@ -59,7 +59,7 @@ try {
     });
   });
   await page
-    .getByRole("button", { name: "向游戏演奏 F8", exact: true })
+    .getByRole("button", { name: /^向游戏演奏 / })
     .click();
   await page.waitForFunction(
     () => window.__smokePlayback.some((p) => p.status === "finished"),
@@ -98,8 +98,14 @@ try {
     .locator(".inspector-tabs")
     .getByRole("button", { name: "设置", exact: true })
     .click();
-  await page.getByLabel("演奏快捷键").fill("F10");
-  await page.getByLabel("停止快捷键").fill("F10");
+  for (const label of ["演奏快捷键", "停止快捷键"]) {
+    const input = page.getByLabel(label);
+    await input.click();
+    await page.waitForFunction(() =>
+      document.activeElement?.getAttribute("placeholder") === "按下快捷键…",
+    );
+    await input.press("F10");
+  }
   await page.getByRole("button", { name: "应用快捷键", exact: true }).click();
   await page
     .getByText("演奏和停止快捷键需要不同的组合", { exact: true })

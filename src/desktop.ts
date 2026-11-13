@@ -54,8 +54,8 @@ export const defaultSettings: Settings = {
   volume: 0.5,
   mode: "foregroundScan",
   warmupMs: 3000,
-  startShortcut: "F8",
-  stopShortcut: "F9",
+  startShortcut: "F11",
+  stopShortcut: "F12",
   closeToTray: true,
   autoUpdate: true,
 };
@@ -97,6 +97,10 @@ export const configureShortcuts = (
   startShortcut: string,
   stopShortcut: string,
 ) => invoke<void>("configure_shortcuts", { startShortcut, stopShortcut });
+export const setShortcutRecording = (recording: boolean) =>
+  native
+    ? invoke<void>("set_shortcut_recording", { recording })
+    : Promise.resolve();
 export const onPlayback = (callback: (playback: Playback) => void) =>
   listen<Playback>("playback", (event) => callback(event.payload));
 export const onError = (callback: (message: string) => void) =>

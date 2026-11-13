@@ -283,45 +283,53 @@ kbd {
 }
 .score-item {
   width: 100%;
-  text-align: left;
   display: flex;
   align-items: center;
-  padding: 12px 10px;
-  gap: 10px;
+  padding: 4px;
+  gap: 2px;
   border-radius: 5px;
   color: var(--muted);
   margin-bottom: 5px;
 }
-.score-item:hover:not(:disabled) {
+.score-item:hover {
   background: var(--surface);
 }
 .score-item.selected {
   background: var(--surface-hover);
   color: var(--text);
 }
-.score-item > svg {
+.score-select {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 4px;
+}
+.score-select > svg {
   flex-shrink: 0;
   color: var(--accent);
 }
-.score-item > span {
-  min-width: 0;
-}
 .score-item strong {
+  min-width: 0;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 140px;
   font-size: 12px;
   font-weight: 500;
 }
-.score-current {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-left: auto;
-  flex-shrink: 0;
+.score-actions {
+  display: flex;
+  gap: 2px;
+}
+.score-actions .icon-button {
+  width: 26px;
+}
+.score-actions .icon-button:last-child:hover:not(:disabled) {
+  color: var(--red);
 }
 .import-library {
   display: flex;
@@ -1206,6 +1214,13 @@ input[type="checkbox"] {
 .hotkey-fields input {
   width: 100%;
   padding: 7px;
+  cursor: pointer;
+}
+.hotkey-fields input.recording {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  caret-color: transparent;
 }
 .secondary-button {
   display: inline-flex;
@@ -1598,6 +1613,9 @@ dialog > footer {
   }
   .score-item {
     padding-inline: 8px;
+  }
+  .score-select > svg {
+    display: none;
   }
   .score-heading {
     padding-right: 14px;

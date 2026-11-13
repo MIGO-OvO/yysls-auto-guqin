@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import {
@@ -167,10 +168,17 @@ export default function App() {
   const [importTitle, setImportTitle] = useState("导入的曲谱");
   const [midiResult, setMidiResult] = useState<ImportResult | null>(null);
   const [append, setAppend] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [exportScore, setExportScore] = useState<Score | null>(null);
   const [exportKind, setExportKind] = useState<"json" | "txt">("json");
-  const [deleteScore, setDeleteScore] = useState(false);
-  const [shortcuts, setShortcuts] = useState({ start: "F8", stop: "F9" });
+  const [deleteScore, setDeleteScore] = useState<Score | null>(null);
+  const [shortcuts, setShortcuts] = useState({
+    start: desktop.defaultSettings.startShortcut,
+    stop: desktop.defaultSettings.stopShortcut,
+  });
+  const [recordingShortcut, setRecordingShortcut] = useState<
+    "start" | "stop" | null
+  >(null);
+  const [shortcutReady, setShortcutReady] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState("");
   const [update, setUpdate] = useState(initialUpdate);
   const [installConfirm, setInstallConfirm] = useState(false);
@@ -179,6 +187,8 @@ export default function App() {
   const saveQueue = useRef(Promise.resolve());
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const programReady = useRef(Promise.resolve());
+  const shortcutQueue = useRef(Promise.resolve());
+  const recordedKey = useRef<string | null>(null);
   const score = scores.find((s) => s.id === activeId) ?? scores[0];
   const [bpmDraft, setBpmDraft] = useState("120");
   useEffect(() => {
@@ -216,6 +226,90 @@ export default function App() {
     },
     [notify],
   );
+
+  function queueShortcutRecording(recording: boolean) {
+    const pending = shortcutQueue.current
+      .catch(() => {})
+      .then(() => desktop.setShortcutRecording(recording));
+    shortcutQueue.current = pending;
+    return pending;
+  }
+  function beginShortcutRecording(
+    field: "start" | "stop",
+    input: HTMLInputElement,
+  ) {
+    recordedKey.current = null;
+    setRecordingShortcut(field);
+    setShortcutReady(!desktop.native);
+    const pending = queueShortcutRecording(true);
+    void pending
+      .then(() => {
+        if (shortcutQueue.current === pending) setShortcutReady(true);
+      })
+      .catch((error) => {
+        notify(errorText(error));
+        input.blur();
+      });
+  }
+  function endShortcutRecording() {
+    recordedKey.current = null;
+    setRecordingShortcut(null);
+    setShortcutReady(false);
+    void queueShortcutRecording(false).catch((error) => {
+      setHotkeyStatus(errorText(error));
+      notify(`恢复快捷键失败：${errorText(error)}。请重新应用快捷键。`);
+    });
+  }
+  function recordShortcut(
+    field: "start" | "stop",
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) {
+    const modified =
+      event.ctrlKey || event.altKey || event.shiftKey || event.metaKey;
+    if (
+      event.code === "Tab" &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.code === "Escape" && !modified) {
+      event.currentTarget.blur();
+      return;
+    }
+    if (
+      !shortcutReady ||
+      event.repeat ||
+      event.nativeEvent.isComposing ||
+      recordedKey.current
+    )
+      return;
+    if (/^(Control|Alt|Shift|Meta)(Left|Right)$/.test(event.code)) return;
+    if (!event.code || event.code === "Unidentified") return;
+    const combination = [
+      event.ctrlKey && "Ctrl",
+      event.altKey && "Alt",
+      event.shiftKey && "Shift",
+      event.metaKey && "Super",
+      event.code.replace(/^(Key|Digit)/, ""),
+    ]
+      .filter(Boolean)
+      .join("+");
+    setShortcuts((v) => ({ ...v, [field]: combination }));
+    recordedKey.current = event.code;
+  }
+
+  useEffect(() => {
+    const blurRecorder = () => {
+      const input = document.activeElement;
+      if (input instanceof HTMLInputElement && input.closest(".hotkey-fields"))
+        input.blur();
+    };
+    window.addEventListener("blur", blurRecorder);
+    return () => window.removeEventListener("blur", blurRecorder);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -507,7 +601,7 @@ export default function App() {
       }
       if (command && event.code === "KeyS") {
         event.preventDefault();
-        setExportOpen(true);
+        setExportScore(score);
         return;
       }
       if (event.code === "Space") {
@@ -611,13 +705,16 @@ export default function App() {
     notify(`已导入 ${imported.notes.length} 个音符`);
   }
   async function exportNow() {
+    if (!exportScore) return;
     if (
       await desktop.exportFile(
-        `${score.title}.${exportKind}`,
-        exportKind === "json" ? exportJson(score) : exportCommands(score),
+        `${exportScore.title}.${exportKind}`,
+        exportKind === "json"
+          ? exportJson(exportScore)
+          : exportCommands(exportScore),
       )
     ) {
-      setExportOpen(false);
+      setExportScore(null);
       notify("已导出曲谱");
     }
   }
@@ -710,19 +807,36 @@ export default function App() {
           {scores
             .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
             .map((s) => (
-              <button
+              <div
                 className={`score-item ${s.id === score.id ? "selected" : ""}`}
                 key={s.id}
-                title={`${s.notes.length} 音符 · ${s.timing.bpm} BPM`}
-                onClick={() => choose(s.id)}
-                disabled={busy}
               >
-                <Music2 size={18} />
-                <span>
+                <button
+                  className="score-select"
+                  title={`${s.title} · ${s.notes.length} 音符 · ${s.timing.bpm} BPM`}
+                  aria-current={s.id === score.id ? "true" : undefined}
+                  onClick={() => choose(s.id)}
+                  disabled={busy}
+                >
+                  <Music2 size={18} />
                   <strong>{s.title}</strong>
-                </span>
-                {s.id === score.id && <span className="score-current" />}
-              </button>
+                </button>
+                <div className="score-actions">
+                  <IconButton
+                    label={`导出「${s.title}」`}
+                    onClick={() => setExportScore(s)}
+                  >
+                    <ArrowUpFromLine size={15} />
+                  </IconButton>
+                  <IconButton
+                    label={`删除「${s.title}」`}
+                    onClick={() => setDeleteScore(s)}
+                    disabled={busy}
+                  >
+                    <Trash2 size={15} />
+                  </IconButton>
+                </div>
+              </div>
             ))}
           {!scores.some((s) =>
             s.title.toLowerCase().includes(query.toLowerCase()),
@@ -800,13 +914,6 @@ export default function App() {
             >
               <Copy size={15} />
               粘贴
-            </button>
-            <button
-              className="quiet-button"
-              onClick={() => setExportOpen(true)}
-            >
-              <ArrowUpFromLine size={15} />
-              导出
             </button>
             <IconButton
               label={inspectorOpen ? "收起设置" : "展开设置"}
@@ -1407,38 +1514,53 @@ export default function App() {
               <section>
                 <h2>全局快捷键</h2>
                 <div className="hotkey-fields">
-                  <label>
-                    开始 / 暂停
-                    <input
-                      aria-label="演奏快捷键"
-                      title="例如 F8 或 Ctrl+Alt+P"
-                      value={shortcuts.start}
-                      onChange={(e) =>
-                        setShortcuts((v) => ({ ...v, start: e.target.value }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    紧急停止
-                    <input
-                      aria-label="停止快捷键"
-                      title="例如 F9 或 Ctrl+Alt+S"
-                      value={shortcuts.stop}
-                      onChange={(e) =>
-                        setShortcuts((v) => ({ ...v, stop: e.target.value }))
-                      }
-                    />
-                  </label>
+                  {(["start", "stop"] as const).map((field) => (
+                    <label key={field}>
+                      {field === "start" ? "开始 / 暂停" : "紧急停止"}
+                      <input
+                        aria-label={
+                          field === "start" ? "演奏快捷键" : "停止快捷键"
+                        }
+                        title={`${shortcuts[field]} · 点击后按下快捷键，支持 Ctrl / Alt / Shift / Command 组合；Esc 取消`}
+                        readOnly
+                        disabled={nativeActive}
+                        className={
+                          recordingShortcut === field ? "recording" : ""
+                        }
+                        placeholder={
+                          shortcutReady ? "按下快捷键…" : "准备录制…"
+                        }
+                        value={
+                          recordingShortcut === field && !recordedKey.current
+                            ? ""
+                            : shortcuts[field]
+                        }
+                        onFocus={(e) =>
+                          beginShortcutRecording(field, e.currentTarget)
+                        }
+                        onBlur={endShortcutRecording}
+                        onKeyDown={(e) => recordShortcut(field, e)}
+                        onKeyUp={(e) => {
+                          if (recordedKey.current === e.code)
+                            e.currentTarget.blur();
+                        }}
+                      />
+                    </label>
+                  ))}
                 </div>
                 <button
                   className="secondary-button"
-                  disabled={!desktop.native || nativeActive}
+                  disabled={nativeActive}
                   onClick={() =>
                     void safely(async () => {
-                      await desktop.configureShortcuts(
-                        shortcuts.start,
-                        shortcuts.stop,
-                      );
+                      await shortcutQueue.current.catch(() => {});
+                      if (shortcuts.start === shortcuts.stop)
+                        throw new Error("演奏和停止快捷键需要不同的组合");
+                      if (desktop.native)
+                        await desktop.configureShortcuts(
+                          shortcuts.start,
+                          shortcuts.stop,
+                        );
                       setSettings((v) => ({
                         ...v,
                         startShortcut: shortcuts.start,
@@ -1587,14 +1709,6 @@ export default function App() {
                   <Copy size={14} />
                   复制当前曲谱
                 </button>
-                <button
-                  className="quiet-button danger-text"
-                  disabled={busy}
-                  onClick={() => setDeleteScore(true)}
-                >
-                  <Trash2 size={14} />
-                  删除当前曲谱
-                </button>
               </section>
             </>
           )}
@@ -1703,8 +1817,8 @@ export default function App() {
           </footer>
         </Dialog>
       )}
-      {exportOpen && (
-        <Dialog title="导出曲谱" close={() => setExportOpen(false)} wide>
+      {exportScore && (
+        <Dialog title="导出曲谱" close={() => setExportScore(null)} wide>
           <div className="dialog-content">
             <div className="export-tabs">
               <button
@@ -1722,8 +1836,8 @@ export default function App() {
             </div>
             <pre className="export-preview">
               {exportKind === "json"
-                ? exportJson(score)
-                : exportCommands(score)}
+                ? exportJson(exportScore)
+                : exportCommands(exportScore)}
             </pre>
           </div>
           <footer>
@@ -1733,8 +1847,8 @@ export default function App() {
                 void safely(async () => {
                   await navigator.clipboard.writeText(
                     exportKind === "json"
-                      ? exportJson(score)
-                      : exportCommands(score),
+                      ? exportJson(exportScore)
+                      : exportCommands(exportScore),
                   );
                   notify("已复制");
                 })
@@ -1807,27 +1921,27 @@ export default function App() {
       )}
       {deleteScore && (
         <Dialog
-          title={`删除「${score.title}」？`}
-          close={() => setDeleteScore(false)}
+          title={`删除「${deleteScore.title}」？`}
+          close={() => setDeleteScore(null)}
         >
           <div className="dialog-content">
-            <p>当前曲谱将从本机曲库移除。需要保留时先导出 JSON。</p>
+            <p>曲谱将从本机曲库移除。需要保留时先导出 JSON。</p>
           </div>
           <footer>
             <button
               className="quiet-button"
-              onClick={() => setDeleteScore(false)}
+              onClick={() => setDeleteScore(null)}
             >
               取消
             </button>
             <button
               className="danger-button"
               onClick={() => {
-                const rest = scores.filter((s) => s.id !== score.id);
+                const rest = scores.filter((s) => s.id !== deleteScore.id);
                 const next = rest.length ? rest : [emptyScore()];
                 setScores(next);
-                choose(next[0].id);
-                setDeleteScore(false);
+                if (score.id === deleteScore.id) choose(next[0].id);
+                setDeleteScore(null);
               }}
             >
               删除曲谱
