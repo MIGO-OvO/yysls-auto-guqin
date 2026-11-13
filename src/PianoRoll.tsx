@@ -83,7 +83,13 @@ export default function PianoRoll({
   }, [cell, keyboardFocus, width]);
 
   function addNote(midi: number, col: number) {
-    const note = { id: uid(), midi, col, len: score.timing.defaultLen };
+    const note = {
+      id: uid(),
+      midi,
+      col,
+      len: score.timing.defaultLen,
+      fromCommands: false,
+    };
     commit({
       ...score,
       cols: Math.max(score.cols, Math.ceil((col + note.len + 1) / 16) * 16),

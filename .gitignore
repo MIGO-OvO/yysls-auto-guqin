@@ -9,6 +9,7 @@ artifacts/
 .impeccable/review/
 .impeccable/mocks/
 .impeccable/build/
+.impeccable/hook.cache.json
 *.key
 *.p12
 *.pfx

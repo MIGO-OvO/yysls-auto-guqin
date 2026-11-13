@@ -6,6 +6,7 @@ export interface Note {
   col: number;
   len: number;
   keys?: string;
+  fromCommands?: boolean;
 }
 export interface Timing {
   bpm: number;
@@ -141,8 +142,9 @@ export function schedule(
     .map((n, i) => {
       const next = melody[i + 1];
       const atMs = Math.round((n.col - startCol) * step);
-      const maximum = score.source === "commands" ? 60000 : 6000;
-      const minimum = score.source === "commands" ? 1 : 20;
+      const commands = n.fromCommands ?? score.source === "commands";
+      const maximum = commands ? 60000 : 6000;
+      const minimum = commands ? 1 : 20;
       const untilNext = next
         ? Math.max(1, Math.round((next.col - n.col) * step))
         : maximum;
@@ -183,6 +185,34 @@ export function exportCommands(score: Score): string {
   }
   if (plan.durationMs > cursor) lines.push(`${plan.durationMs - cursor}ms`);
   return lines.join("\n");
+}
+
+export function appendScore(score: Score, imported: Score): Score {
+  const base = score.notes.reduce(
+    (end, n) => Math.max(end, n.col + n.len),
+    score.endCol ?? 0,
+  );
+  const ratio = stepMs(imported) / stepMs(score);
+  return {
+    ...score,
+    endCol: Math.max(base, base + (imported.endCol ?? 0) * ratio),
+    notes: [
+      ...score.notes.map((n) => ({
+        ...n,
+        fromCommands: n.fromCommands ?? score.source === "commands",
+      })),
+      ...imported.notes.map((n) => ({
+        ...n,
+        fromCommands: n.fromCommands ?? imported.source === "commands",
+        col: base + n.col * ratio,
+        len: n.len * ratio,
+      })),
+    ],
+    cols: Math.max(
+      score.cols,
+      Math.ceil((base + imported.cols * ratio) / 16) * 16,
+    ),
+  };
 }
 
 export function exportJson(score: Score): string {
@@ -238,8 +268,11 @@ export function importJson(text: string, title: string): ImportResult {
     if (!item || typeof item !== "object")
       throw new Error(`第 ${i + 1} 个音符格式错误`);
     const n = item as Record<string, unknown>;
+    if (n.fromCommands !== undefined && typeof n.fromCommands !== "boolean")
+      throw new Error("音符来源必须是布尔值");
+    const fromCommands = n.fromCommands;
     const midi =
-      n.midi === null && score.source === "commands"
+      n.midi === null && (fromCommands ?? score.source === "commands")
         ? null
         : number(n.midi, 48, 83, "音高");
     if (midi !== null && !Number.isInteger(midi))
@@ -252,6 +285,7 @@ export function importJson(text: string, title: string): ImportResult {
       col: number(n.col, 0, 1000000, "位置"),
       len: number(n.len ?? 1, 0.001, 32000, "音长"),
       keys,
+      fromCommands,
     };
   });
   if (data.endCol !== undefined)
@@ -302,6 +336,7 @@ export function importCommands(
             keys,
             col: cursor / step,
             len: hold / step,
+            fromCommands: true,
           });
           cursor += hold;
         } else if (/^\d+\s*(ms)?$/i.test(raw))

@@ -8,6 +8,8 @@ pub struct Note {
     pub col: f64,
     pub len: f64,
     pub keys: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_commands: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -131,7 +133,7 @@ impl Score {
         if self.source.as_deref().is_some_and(|s| s != "commands") {
             return Err("未知乐谱来源".into());
         }
-        let commands = self.source.as_deref() == Some("commands");
+        let legacy_commands = self.source.as_deref() == Some("commands");
         let step = 60000.0 / self.timing.bpm * 4.0 / self.timing.grid_factor as f64;
         let mut ordered = self.notes.iter().collect::<Vec<_>>();
         let mut ids = std::collections::HashSet::new();
@@ -145,7 +147,7 @@ impl Score {
             }
             if let Some(midi) = n.midi {
                 mapping(midi)?;
-            } else if !commands {
+            } else if !n.from_commands.unwrap_or(legacy_commands) {
                 return Err("命令轨只接受 TXT 命令乐谱".into());
             }
             if let Some(keys) = &n.keys {
@@ -167,6 +169,7 @@ impl Score {
                 continue;
             }
             let at_ms = ((n.col - start_col) * step).round() as u64;
+            let commands = n.from_commands.unwrap_or(legacy_commands);
             let min_hold = if commands { 1.0 } else { 20.0 };
             let max_hold = if commands { 60000.0 } else { 6000.0 };
             let mut hold = (n.len * step).round().clamp(min_hold, max_hold);
@@ -290,5 +293,25 @@ mod tests {
         assert_eq!(s.compile(0.0).unwrap().notes[0].hold_ms, 6000);
         s.source = Some("commands".into());
         assert_eq!(s.compile(0.0).unwrap().notes[0].hold_ms, 60000);
+    }
+    #[test]
+    fn mixed_notes_keep_individual_hold_policy() {
+        let mut s = score();
+        s.notes.truncate(1);
+        s.notes[0].len = 1000.0;
+        let mut command = s.notes[0].clone();
+        command.id = "command".into();
+        command.col = 1000.0;
+        command.midi = None;
+        command.keys = Some("F12".into());
+        command.from_commands = Some(true);
+        s.notes[0].from_commands = Some(false);
+        s.notes.push(command);
+        for source in [None, Some("commands".into())] {
+            s.source = source;
+            let plan = s.compile(0.0).unwrap();
+            assert_eq!(plan.notes[0].hold_ms, 6000);
+            assert_eq!(plan.notes[1].hold_ms, 60000);
+        }
     }
 }

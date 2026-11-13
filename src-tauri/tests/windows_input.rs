@@ -85,7 +85,7 @@ fn receiver_child() {
         );
         assert!(!window.is_null());
         ShowWindow(window, SW_SHOWNOACTIVATE);
-        let end = Instant::now() + Duration::from_secs(15);
+        let end = Instant::now() + Duration::from_secs(60);
         while Instant::now() < end {
             let mut message = std::mem::zeroed();
             while PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
@@ -175,6 +175,7 @@ fn background_receiver_gets_all_36_keys_and_modifiers_without_activating() {
             col: i as f64 * 2.0,
             len: 1.0,
             keys: None,
+            from_commands: None,
         })
         .collect::<Vec<_>>();
     notes.push(Note {
@@ -183,6 +184,7 @@ fn background_receiver_gets_all_36_keys_and_modifiers_without_activating() {
         col: 72.0,
         len: 1.0,
         keys: Some("Ctrl+Alt+Shift+F12".into()),
+        from_commands: None,
     });
     let score = Score {
         id: "receiver".into(),

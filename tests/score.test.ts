@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { writeMidi, type MidiData } from "midi-file";
 import fixture from "./fixtures/score.json";
 import {
+  appendScore,
   canonicalKeys,
   emptyScore,
   exportCommands,
@@ -131,6 +132,41 @@ describe("legacy formats and a shared timeline", () => {
     expect(schedule(score).notes[0].midi).toBe(83);
     score.notes = [{ ...score.notes[0], len: 1000 }];
     expect(schedule(score).notes[0].holdMs).toBe(6000);
+  });
+  it("preserves each hold policy, timing and trailing rest when appending mixed formats", () => {
+    const ordinary = emptyScore("ordinary");
+    ordinary.timing.bpm = 30;
+    ordinary.notes = [{ id: "long", midi: 60, col: 0, len: 16 }];
+    const commands = importCommands(
+      "KEY F12 1\nKEY Q 60000\n321ms",
+      "commands",
+      emptyScore().timing,
+    ).score;
+    const forward = appendScore(ordinary, commands);
+    const backward = appendScore(commands, ordinary);
+    expect(schedule(forward).notes.map((n) => [n.atMs, n.holdMs])).toEqual([
+      [0, 6000],
+      [16000, 1],
+      [16001, 60000],
+    ]);
+    expect(schedule(backward).notes.map((n) => [n.atMs, n.holdMs])).toEqual([
+      [0, 1],
+      [1, 60000],
+      [60322, 6000],
+    ]);
+    for (const mixed of [forward, backward])
+      expect(schedule(importJson(exportJson(mixed), "mixed").score)).toEqual({
+        ...schedule(mixed),
+        notes: schedule(mixed).notes.map((n) => ({
+          ...n,
+          id: expect.any(String),
+        })),
+      });
+    const legacy = importJson(
+      '{"source":"commands","notes":[{"midi":72,"col":0,"len":1000}]}',
+      "legacy",
+    ).score;
+    expect(schedule(legacy).notes[0].holdMs).toBe(60000);
   });
 });
 

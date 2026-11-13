@@ -46,6 +46,7 @@ import {
 import PianoRoll, { type Tool } from "./PianoRoll";
 import { PreviewAudio } from "./audio";
 import {
+  appendScore,
   demoScore,
   emptyScore,
   exportCommands,
@@ -599,31 +600,8 @@ export default function App() {
   function applyImport() {
     if (!parsed.result) return;
     const imported = parsed.result.score;
-    if (append) {
-      const base = score.notes.reduce(
-        (end, n) => Math.max(end, n.col + n.len),
-        0,
-      );
-      const ratio = stepMs(imported) / stepMs(score);
-      const incoming = imported.notes.map((n) => ({
-        ...n,
-        col: base + n.col * ratio,
-        len: n.len * ratio,
-      }));
-      commit({
-        ...score,
-        source: score.source ?? imported.source,
-        endCol: Math.max(
-          score.endCol ?? 0,
-          base + (imported.endCol ?? 0) * ratio,
-        ),
-        notes: [...score.notes, ...incoming],
-        cols: Math.max(
-          score.cols,
-          Math.ceil((base + imported.cols * ratio) / 16) * 16,
-        ),
-      });
-    } else commit({ ...imported, id: score.id });
+    if (append) commit(appendScore(score, imported));
+    else commit({ ...imported, id: score.id });
     setStartCol(0);
     setSelected(null);
     setImportOpen(false);
