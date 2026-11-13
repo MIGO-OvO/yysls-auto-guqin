@@ -1,6 +1,6 @@
 [package]
 name = "yysls-auto-guqin"
-version = "0.1.3"
+version = "0.1.4"
 description = "燕云琴笺 · 自由演奏工作台"
 authors = ["MIGO-OvO", "Kukisama"]
 edition = "2021"

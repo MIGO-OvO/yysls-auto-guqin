@@ -32,6 +32,8 @@ npm run tauri -- build --ci --target aarch64-apple-darwin --bundles app,dmg -- -
 
 曲库位置由 Tauri 的 `app_data_dir()` 决定：Windows 通常为 `%APPDATA%/io.github.migo-ovo.yysls-auto-guqin/workspace.json`，macOS 为 `~/Library/Application Support/io.github.migo-ovo.yysls-auto-guqin/workspace.json`。读取失败时不覆盖原文件，界面提示导出当前编辑内容。
 
+旧设置未带 `appearanceVersion` 时，首次加载切换为米色并保存版本标记 1；后续启动保留用户选择的浅色、深色或系统主题。曲谱、快捷键和其他设置沿用原值。
+
 ## 更新签名
 
 首次配置用 `npm run tauri -- signer generate --write-keys <仓库外路径>` 生成密钥。将 `.pub` 中的公钥写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。私钥全文放在仓库 Secret `TAURI_SIGNING_PRIVATE_KEY`；如设了密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
@@ -42,14 +44,14 @@ npm run tauri -- build --ci --target aarch64-apple-darwin --bundles app,dmg -- -
 
 macOS 默认 `signingIdentity: "-"`，生成 ad-hoc 应用。需要 Developer ID 签名与 Apple 公证时，在仓库配置：
 
-| Secret | 内容 |
-| --- | --- |
-| `APPLE_CERTIFICATE` | Developer ID Application 证书的 base64 编码 p12 |
-| `APPLE_CERTIFICATE_PASSWORD` | p12 密码 |
-| `APPLE_SIGNING_IDENTITY` | Developer ID Application 身份 |
-| `APPLE_ID` | Apple 开发者账号 |
-| `APPLE_PASSWORD` | App 专用密码 |
-| `APPLE_TEAM_ID` | 开发者团队 ID |
+| Secret                       | 内容                                            |
+| ---------------------------- | ----------------------------------------------- |
+| `APPLE_CERTIFICATE`          | Developer ID Application 证书的 base64 编码 p12 |
+| `APPLE_CERTIFICATE_PASSWORD` | p12 密码                                        |
+| `APPLE_SIGNING_IDENTITY`     | Developer ID Application 身份                   |
+| `APPLE_ID`                   | Apple 开发者账号                                |
+| `APPLE_PASSWORD`             | App 专用密码                                    |
+| `APPLE_TEAM_ID`              | 开发者团队 ID                                   |
 
 工作流把这些值交给 Tauri 签名与公证。未提供证书时保持 ad-hoc，Release 不声称已公证。安装后在“系统设置 > 隐私与安全性 > 辅助功能”授权，再回到应用重新检测；应用签名或路径变化后可能需要重新授权。
 

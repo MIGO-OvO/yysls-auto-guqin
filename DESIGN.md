@@ -135,7 +135,7 @@ components:
 
 # Design System: 燕云琴笺
 
-米色为主，松绿 #4A6741 点缀。界面沿用音乐工作台的连续窗格，淡墨远山和松枝只进入留白。
+米色为主，松绿 #4A6741 点缀。界面沿用音乐工作台的连续窗格，淡墨远山只进入留白。
 
 ## 色彩
 
@@ -159,4 +159,4 @@ components:
 
 ## 画作
 
-曲名栏使用 src/assets/distant-mountains.png，曲库留白使用 src/assets/pine-branch.png。两幅图不接收指针事件；深色主题降低可见度。生成方式和最终提示词见 docs/ARTWORK.md。
+曲名栏使用 src/assets/distant-mountains.png。画作不接收指针事件；深色主题降低可见度。生成方式和最终提示词见 docs/ARTWORK.md。

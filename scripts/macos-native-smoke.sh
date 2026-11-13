@@ -41,7 +41,8 @@ data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 assert data['version'] == 1 and data['scores']
 assert any(score['notes'] for score in data['scores'])
 assert any(score['id'] == data['activeId'] for score in data['scores'])
-result = {'version': sys.argv[2], 'architecture': sys.argv[3], 'codeSignatureVerified': True, 'nativeStartup': True, 'webviewRustPersistence': True, 'scores': len(data['scores'])}
+assert data['settings']['theme'] == 'light' and data['settings']['appearanceVersion'] == 1
+result = {'version': sys.argv[2], 'architecture': sys.argv[3], 'codeSignatureVerified': True, 'nativeStartup': True, 'webviewRustPersistence': True, 'scores': len(data['scores']), 'theme': 'light'}
 pathlib.Path('artifacts/macos-native.json').write_text(json.dumps(result, indent=2))
 print(json.dumps(result))
 PY

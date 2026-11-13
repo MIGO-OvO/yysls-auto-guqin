@@ -131,6 +131,14 @@ try {
     `updated application did not restart with the expected version: ${restartError}`,
   );
   assert.equal(await page.getByLabel("曲谱名称").inputValue(), marker);
+  await page.waitForFunction(async () => {
+    const workspace = await window.__TAURI_INTERNALS__.invoke("load_workspace");
+    return (
+      workspace.settings.theme === "light" &&
+      workspace.settings.appearanceVersion === 1
+    );
+  });
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
   const workspace = await invoke("load_workspace");
   assert(workspace.scores.some((score) => score.title === marker));
   assert.deepEqual(errors, []);
@@ -145,6 +153,8 @@ try {
         progress,
         restarted: true,
         workspacePreserved: true,
+        appearanceMigrated: true,
+        theme: "light",
         pageErrors: errors,
       },
       null,

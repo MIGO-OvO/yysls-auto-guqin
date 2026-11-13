@@ -230,6 +230,10 @@ export default function App() {
         setScores(initial);
         setActiveId(workspace?.activeId ?? initial[0].id);
         const prefs = { ...desktop.defaultSettings, ...workspace?.settings };
+        if (workspace && (workspace.settings.appearanceVersion ?? 0) < 1) {
+          prefs.theme = "light";
+          prefs.appearanceVersion = 1;
+        }
         setSettings(prefs);
         setShortcuts({ start: prefs.startShortcut, stop: prefs.stopShortcut });
         setStorageOk(true);
@@ -724,7 +728,6 @@ export default function App() {
             s.title.toLowerCase().includes(query.toLowerCase()),
           ) && <p className="small-empty">没有匹配的曲谱</p>}
         </div>
-        <div className="library-art" aria-hidden="true" />
         <button
           className="import-library"
           onClick={() => void safely(() => openFile())}

@@ -1,5 +1,48 @@
 import { expect, test } from "@playwright/test";
 
+test("migrates an existing dark workspace to beige once and preserves later choices", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.waitForFunction(() =>
+    Boolean(localStorage.getItem("qin-workspace")),
+  );
+  const original = await page.evaluate(() => {
+    const workspace = JSON.parse(localStorage.getItem("qin-workspace")!);
+    workspace.settings.theme = "dark";
+    delete workspace.settings.appearanceVersion;
+    localStorage.setItem("qin-workspace", JSON.stringify(workspace));
+    return { scores: workspace.scores, activeId: workspace.activeId };
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.waitForFunction(() => {
+    const workspace = JSON.parse(localStorage.getItem("qin-workspace")!);
+    return (
+      workspace.settings.theme === "light" &&
+      workspace.settings.appearanceVersion === 1
+    );
+  });
+  await page
+    .locator(".inspector-tabs")
+    .getByRole("button", { name: "设置", exact: true })
+    .click();
+  await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      JSON.parse(localStorage.getItem("qin-workspace")!).settings.theme ===
+      "dark",
+  );
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(
+    await page.evaluate(() => {
+      const workspace = JSON.parse(localStorage.getItem("qin-workspace")!);
+      return { scores: workspace.scores, activeId: workspace.activeId };
+    }),
+  ).toEqual(original);
+});
+
 test("edits, imports, undo/redo, exports and persists an actual score", async ({
   page,
 }) => {

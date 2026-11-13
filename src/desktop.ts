@@ -12,6 +12,7 @@ export interface Target {
   processName: string;
 }
 export interface Settings {
+  appearanceVersion?: number;
   theme: "dark" | "light" | "system";
   volume: number;
   mode: InputMode;
@@ -48,6 +49,7 @@ export interface Program {
   startCol: number;
 }
 export const defaultSettings: Settings = {
+  appearanceVersion: 1,
   theme: "light",
   volume: 0.5,
   mode: "foregroundScan",

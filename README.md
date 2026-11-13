@@ -4,7 +4,7 @@
 
 面向 Windows x64 与 macOS 13 及以上版本（Apple Silicon / Intel）。
 
-默认米色工作台，松绿点缀，淡墨远山与松枝画作随应用离线分发。
+默认米色工作台，松绿点缀，淡墨远山画作随应用离线分发。
 
 基于 [Kukisama 的 yysls-freeplay-arranger](https://github.com/Kukiisama/yysls-freeplay-arranger) 重构，使用 Rust、Tauri 2、React 与 TypeScript，沿用 MIT 协议。
 
@@ -53,7 +53,7 @@ JSON 导出保留 `cols`、`timing` 和音符的 `col/len/midi/name/keys` 字段
 | macOS 前台   | Quartz 键盘事件                | 辅助功能与事件发送权限；目标应用保持前台       |
 | macOS 后台   | CGEventPostToPid               | 实验性；游戏实际接收待验证                     |
 
-**后台游戏演奏尚未验收。** 界面始终显示“游戏接收未验证”。Windows 普通接收窗口测试与游戏验收分别记录在[平台验收](docs/VALIDATION.md)。游戏不接收后台事件时，使用前台模式。
+**后台游戏演奏尚未验收。** 选择后台模式时显示“游戏接收未验证”。Windows 普通接收窗口测试与游戏验收分别记录在[平台验收](docs/VALIDATION.md)。游戏不接收后台事件时，使用前台模式。
 
 暂停、停止、正常退出、线程异常和目标丢失都会执行本程序已按键的松键清理。暂停后继续不重发暂停时的音符。操作系统强制终止进程或撤销输入权限时，清理代码可能无法执行或发送；演奏引擎不会在重连后自动恢复。
 

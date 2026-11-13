@@ -356,17 +356,6 @@ kbd {
   background: var(--surface);
   color: var(--text);
 }
-.library-art {
-  height: 132px;
-  width: 100%;
-  max-width: 180px;
-  flex-shrink: 0;
-  align-self: center;
-  background: url("./assets/pine-branch.png") center / contain no-repeat;
-  mix-blend-mode: darken;
-  opacity: 0.8;
-  pointer-events: none;
-}
 .update-dot {
   width: 5px;
   height: 5px;
@@ -402,7 +391,6 @@ kbd {
   pointer-events: none;
   z-index: -1;
 }
-:root[data-theme="dark"] .library-art,
 :root[data-theme="dark"] .score-heading::before {
   mix-blend-mode: screen;
   filter: grayscale(1) invert(1);
@@ -1640,9 +1628,6 @@ dialog > footer {
   }
   .transport {
     padding-block: 10px;
-  }
-  .library-art {
-    height: 88px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
