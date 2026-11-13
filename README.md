@@ -8,6 +8,8 @@
 
 [下载安装包](https://github.com/MIGO-OvO/yysls-auto-guqin/releases/latest) · [开发说明](docs/DEVELOPMENT.md) · [迁移对照](docs/MIGRATION.md) · [平台验收](docs/VALIDATION.md)
 
+![编排工作台](docs/assets/workbench.png)
+
 ## 使用
 
 1. 在左侧新建曲谱，点击中央钢琴卷写音符；拖动移动、拖右缘改音长、右键删除。
