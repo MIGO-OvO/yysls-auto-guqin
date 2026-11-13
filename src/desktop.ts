@@ -48,7 +48,7 @@ export interface Program {
   startCol: number;
 }
 export const defaultSettings: Settings = {
-  theme: "dark",
+  theme: "light",
   volume: 0.5,
   mode: "foregroundScan",
   warmupMs: 3000,

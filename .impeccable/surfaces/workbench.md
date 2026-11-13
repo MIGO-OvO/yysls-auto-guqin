@@ -6,7 +6,7 @@
 
 ## OWN-WORLD
 
-东方武侠配色：默认黛青与墨绿，暖白文字，暗金操作与游标；浅色主题保留相同层级。装饰集中在应用标记，标题与正文使用离线平台字体回退。
+米色为主，松绿 #4A6741 标识操作、游标与选中态，深色主题沿用同一层级。曲名栏使用淡墨远山，曲库留白放置松枝画作。标题与正文使用离线平台字体回退；界面只保留必要标签和实际状态。
 
 ## STORY
 
@@ -24,4 +24,4 @@
 
 实现来源：`src/styles.css`、`src/App.tsx`、`src/PianoRoll.tsx`。设计语义来源：`PRODUCT.md`、`.impeccable.md`。系统色值与组件记录在 `DESIGN.md` 和 `.impeccable/design.json`。
 
-核对图：`review/desktop.png`、`review/light.png`、`review/compact.png`、`review/import-error.png`。四个 Playwright 场景覆盖编排与持久化、指针编辑、键盘编辑，以及试听和界面状态。
+核对图：`review/desktop.png`、`review/light.png`、`review/dark.png`、`review/compact.png`、`review/import-error.png`。四个 Playwright 场景覆盖编排与持久化、指针编辑、键盘编辑，以及试听和界面状态。

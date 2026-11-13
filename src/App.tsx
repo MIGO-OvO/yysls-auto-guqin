@@ -54,7 +54,6 @@ import {
   formatTime,
   importMidi,
   importText,
-  pitchOf,
   pitches,
   schedule,
   stepMs,
@@ -659,11 +658,6 @@ export default function App() {
             <AudioLines size={22} />
           </span>
           <strong>燕云琴笺</strong>
-          <span className="brand-divider" />
-          <span>自由演奏工作台</span>
-        </div>
-        <div className="titlebar-center" data-tauri-drag-region>
-          {score.title}
         </div>
         <div className="window-buttons">
           <IconButton
@@ -715,16 +709,13 @@ export default function App() {
               <button
                 className={`score-item ${s.id === score.id ? "selected" : ""}`}
                 key={s.id}
+                title={`${s.notes.length} 音符 · ${s.timing.bpm} BPM`}
                 onClick={() => choose(s.id)}
                 disabled={busy}
               >
                 <Music2 size={18} />
                 <span>
                   <strong>{s.title}</strong>
-                  <small>
-                    {s.notes.length} 音符<span>·</span>
-                    {s.timing.bpm} BPM
-                  </small>
                 </span>
                 {s.id === score.id && <span className="score-current" />}
               </button>
@@ -733,13 +724,14 @@ export default function App() {
             s.title.toLowerCase().includes(query.toLowerCase()),
           ) && <p className="small-empty">没有匹配的曲谱</p>}
         </div>
+        <div className="library-art" aria-hidden="true" />
         <button
           className="import-library"
           onClick={() => void safely(() => openFile())}
           disabled={busy}
         >
           <ArrowDownToLine size={16} />
-          导入曲谱<span>JSON · MIDI · TXT</span>
+          导入曲谱
         </button>
         <footer className="library-footer">
           <button
@@ -757,10 +749,6 @@ export default function App() {
             <CircleHelp size={17} />
             使用说明
           </button>
-          <div className="library-signature">
-            <span>一曲入山河</span>
-            <small>v{version}</small>
-          </div>
         </footer>
       </aside>
 
@@ -986,17 +974,6 @@ export default function App() {
           preview={preview}
           locked={busy}
         />
-        <div className="roll-caption">
-          <span>
-            {note
-              ? `${pitchOf(note.midi)?.name ?? note.keys} · 第 ${(note.col + 1).toFixed(2).replace(/\.00$/, "")} 格 · ${Math.round(note.len * stepMs(score))} ms`
-              : "点击写入 · 拖动移动 · 拖右缘改音长 · 右键删除"}
-          </span>
-          <span>
-            36 键<span className="caption-dot" />
-            C3–B5
-          </span>
-        </div>
         <div className="overview" aria-label="曲谱概览">
           <svg
             viewBox={`0 0 ${score.cols} 40`}
@@ -1033,11 +1010,10 @@ export default function App() {
         </div>
         <section className="keyboard-section">
           <div className="keyboard-heading">
-            <h2>
+            <h2 title="Shift 升半音，Ctrl 降半音">
               <Keyboard size={16} />
               试听琴键
             </h2>
-            <span>Shift 升半音 · Ctrl 降半音</span>
             <label className="volume">
               <Volume2 size={15} />
               <input
@@ -1129,7 +1105,9 @@ export default function App() {
                     ? "向游戏演奏中"
                     : previewState === "playing"
                       ? "试听中"
-                      : `起点 ${startCol + 1}`}
+                      : startCol > 0
+                        ? `起点 ${startCol + 1}`
+                        : ""}
             </small>
           </div>
           <button
@@ -1248,6 +1226,7 @@ export default function App() {
                   ).map((mode) => (
                     <label
                       key={mode.value}
+                      title={mode.desc}
                       className={settings.mode === mode.value ? "selected" : ""}
                     >
                       <input
@@ -1262,22 +1241,23 @@ export default function App() {
                       />
                       <span>
                         <strong>{mode.title}</strong>
-                        <small>{mode.desc}</small>
                       </span>
                       {settings.mode === mode.value && <Check size={14} />}
                     </label>
                   ))}
                 </div>
                 {settings.mode === "background" && (
-                  <p className="mode-note">
-                    需要游戏逐音验证 36 键及
-                    Shift/Ctrl。系统发送成功不能证明游戏收到了音符。
+                  <p
+                    className="mode-note"
+                    title="后台输入为实验性功能，需要在游戏内逐音验证 36 键及 Shift/Ctrl 组合键。"
+                  >
+                    游戏接收未验证
                   </p>
                 )}
               </section>
               <section className="performance-options">
-                <label>
-                  开始前预留
+                <label title="在倒计时内切换到所选游戏窗口">
+                  倒计时
                   <span>
                     <input
                       type="number"
@@ -1300,11 +1280,10 @@ export default function App() {
                     ms
                   </span>
                 </label>
-                <p>点击演奏后，在倒计时内切换到已选游戏。</p>
               </section>
-              <section>
-                <h2>音符</h2>
-                {note ? (
+              {note && (
+                <section>
+                  <h2>音符</h2>
                   <div className="note-inspector">
                     <label>
                       音高
@@ -1375,12 +1354,8 @@ export default function App() {
                       删除音符
                     </button>
                   </div>
-                ) : (
-                  <p className="inspector-hint">
-                    选中音符后调整音高、位置与音长。
-                  </p>
-                )}
-              </section>
+                </section>
+              )}
               <div className="shortcut-reference">
                 <div>
                   <kbd>{settings.startShortcut}</kbd>
@@ -1390,15 +1365,11 @@ export default function App() {
                   <kbd>{settings.stopShortcut}</kbd>
                   <span>停止并松开按键</span>
                 </div>
-                <small
-                  className={
-                    hotkeyStatus && hotkeyStatus !== "已注册"
-                      ? "danger-text"
-                      : ""
-                  }
-                >
-                  {desktop.native ? hotkeyStatus : "全局快捷键在桌面应用中生效"}
-                </small>
+                {desktop.native &&
+                  hotkeyStatus &&
+                  hotkeyStatus !== "已注册" && (
+                    <small className="danger-text">{hotkeyStatus}</small>
+                  )}
               </div>
             </>
           ) : (
@@ -1408,8 +1379,8 @@ export default function App() {
                 <div className="theme-options">
                   {(
                     [
-                      { value: "dark", icon: <Moon size={16} />, text: "深色" },
                       { value: "light", icon: <Sun size={16} />, text: "浅色" },
+                      { value: "dark", icon: <Moon size={16} />, text: "深色" },
                       {
                         value: "system",
                         icon: <Monitor size={16} />,
@@ -1437,6 +1408,7 @@ export default function App() {
                     开始 / 暂停
                     <input
                       aria-label="演奏快捷键"
+                      title="例如 F8 或 Ctrl+Alt+P"
                       value={shortcuts.start}
                       onChange={(e) =>
                         setShortcuts((v) => ({ ...v, start: e.target.value }))
@@ -1447,6 +1419,7 @@ export default function App() {
                     紧急停止
                     <input
                       aria-label="停止快捷键"
+                      title="例如 F9 或 Ctrl+Alt+S"
                       value={shortcuts.stop}
                       onChange={(e) =>
                         setShortcuts((v) => ({ ...v, stop: e.target.value }))
@@ -1475,9 +1448,6 @@ export default function App() {
                 >
                   应用快捷键
                 </button>
-                <p className="inspector-hint">
-                  例如 F8 或 Ctrl+Alt+P。按键被其他程序占用时会保留原设置。
-                </p>
               </section>
               <section>
                 <h2>窗口与权限</h2>
@@ -1535,11 +1505,6 @@ export default function App() {
                     }
                   />
                 </label>
-                {update.phase === "idle" && (
-                  <p className="inspector-hint">
-                    通过 GitHub Releases 获取签名更新。
-                  </p>
-                )}
                 {update.phase === "checking" && <p>正在检查更新…</p>}
                 {update.phase === "current" && (
                   <p className="success-text">已是最新版本</p>
@@ -1634,11 +1599,9 @@ export default function App() {
       </aside>
 
       <footer className="statusbar">
-        <span>
-          <span className={`status-dot ${desktop.native ? "connected" : ""}`} />
-          {desktop.native
-            ? `${permission?.platform === "macos" ? "macOS" : "Windows"} 桌面版`
-            : "浏览器编排模式"}
+        <span title={permission?.message}>
+          <span className={`status-dot ${target ? "connected" : ""}`} />
+          {desktop.native ? (target?.title ?? "未连接游戏") : "浏览器模式"}
         </span>
         <span>
           {playback.status === "error"
@@ -1683,7 +1646,6 @@ export default function App() {
                 <FolderOpen size={16} />
                 选择文件
               </button>
-              <span>JSON、MIDI、TXT，或在下方粘贴简谱</span>
             </div>
             {!midiResult && (
               <textarea

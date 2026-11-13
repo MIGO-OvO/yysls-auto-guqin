@@ -398,8 +398,7 @@ export default function PianoRoll({
             {!notes.length && (
               <div className="roll-empty">
                 <Music2 size={30} />
-                <strong>从一枚音符开始</strong>
-                <span>点击网格写谱，或导入简谱、MIDI 与旧曲谱。</span>
+                <strong>点击写谱</strong>
               </div>
             )}
           </div>

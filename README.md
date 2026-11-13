@@ -4,6 +4,8 @@
 
 面向 Windows x64 与 macOS 13 及以上版本（Apple Silicon / Intel）。
 
+默认米色工作台，松绿点缀，淡墨远山与松枝画作随应用离线分发。
+
 基于 [Kukisama 的 yysls-freeplay-arranger](https://github.com/Kukiisama/yysls-freeplay-arranger) 重构，使用 Rust、Tauri 2、React 与 TypeScript，沿用 MIT 协议。
 
 [下载安装包](https://github.com/MIGO-OvO/yysls-auto-guqin/releases/latest) · [开发说明](docs/DEVELOPMENT.md) · [迁移对照](docs/MIGRATION.md) · [平台验收](docs/VALIDATION.md)
@@ -44,12 +46,12 @@ JSON 导出保留 `cols`、`timing` 和音符的 `col/len/midi/name/keys` 字段
 
 ## 输入与平台
 
-| 模式 | 实现 | 使用条件 |
-| --- | --- | --- |
-| Windows 前台 | SendInput 扫描码 / 虚拟键 | 目标窗口保持前台；与游戏使用同等权限 |
+| 模式         | 实现                           | 使用条件                                       |
+| ------------ | ------------------------------ | ---------------------------------------------- |
+| Windows 前台 | SendInput 扫描码 / 虚拟键      | 目标窗口保持前台；与游戏使用同等权限           |
 | Windows 后台 | WM_KEYDOWN / WM_KEYUP 定向消息 | 实验性；游戏可能轮询键盘状态而忽略消息或修饰键 |
-| macOS 前台 | Quartz 键盘事件 | 辅助功能与事件发送权限；目标应用保持前台 |
-| macOS 后台 | CGEventPostToPid | 实验性；游戏实际接收待验证 |
+| macOS 前台   | Quartz 键盘事件                | 辅助功能与事件发送权限；目标应用保持前台       |
+| macOS 后台   | CGEventPostToPid               | 实验性；游戏实际接收待验证                     |
 
 **后台游戏演奏尚未验收。** 界面始终显示“游戏接收未验证”。Windows 普通接收窗口测试与游戏验收分别记录在[平台验收](docs/VALIDATION.md)。游戏不接收后台事件时，使用前台模式。
 

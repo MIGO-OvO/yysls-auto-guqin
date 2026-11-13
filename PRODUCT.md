@@ -22,7 +22,7 @@ Rust、Tauri 2、React、TypeScript。由用户指定。
 
 ## Operating Context
 
-左侧曲库，中央钢琴卷，底部试听琴键，右侧可收起的演奏设置。用户已确认最大化编排空间，默认深色黛青。
+左侧曲库，中央钢琴卷，底部试听琴键，右侧可收起的演奏设置。编排空间优先，默认米色浅色主题。
 
 ## Capabilities and Constraints
 
@@ -30,7 +30,7 @@ Rust、Tauri 2、React、TypeScript。由用户指定。
 
 ## Brand Commitments
 
-东方武侠美学，黛青、墨绿、暖白、暗金；克制装饰，重视空间与效率，不沿用原布局。
+米色为主，松绿 #4A6741 点缀；淡墨远山与松枝画作只用于窗格留白。常驻界面只保留操作名称、必要标签和实际状态，详细说明放入帮助与悬浮提示。
 
 ## Evidence on Hand
 

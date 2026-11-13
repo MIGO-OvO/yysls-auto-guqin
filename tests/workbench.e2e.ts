@@ -115,6 +115,11 @@ test("preview pauses/stops and every shipped layout renders", async ({
   await expect(page.getByText("已暂停", { exact: true })).toBeVisible();
   await page.getByLabel("停止", { exact: true }).click();
   await page.screenshot({ path: ".impeccable/review/desktop.png" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("radio", { name: "后台定向输入", exact: true }).check();
+  await expect(page.getByText("游戏接收未验证", { exact: true })).toBeVisible();
+  await page.screenshot({ path: ".impeccable/review/background.png" });
+  await page.getByRole("radio", { name: "前台演奏", exact: true }).check();
   await page
     .locator(".inspector-tabs")
     .getByRole("button", { name: "设置", exact: true })
@@ -124,6 +129,8 @@ test("preview pauses/stops and every shipped layout renders", async ({
   await page.screenshot({ path: ".impeccable/review/light.png" });
   await page.getByRole("button", { name: "深色", exact: true }).click();
   await page.waitForTimeout(200);
+  await page.screenshot({ path: ".impeccable/review/dark.png" });
+  await page.getByRole("button", { name: "浅色", exact: true }).click();
   await page.setViewportSize({ width: 950, height: 650 });
   await page.getByLabel("关闭演奏面板", { exact: true }).click();
   await page.screenshot({ path: ".impeccable/review/compact.png" });
