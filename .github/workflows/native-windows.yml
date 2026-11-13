@@ -1,0 +1,60 @@
+name: Native Windows
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: native-windows
+  cancel-in-progress: false
+jobs:
+  native:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [engine, update]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.scenario == 'engine'
+      - uses: swatinem/rust-cache@v2
+        if: matrix.scenario == 'engine'
+        with:
+          workspaces: src-tauri -> target
+      - name: Build isolated input receiver
+        if: matrix.scenario == 'engine'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --test windows_input --no-run
+      - name: Download published installer
+        id: installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $latest = gh release view --repo "$env:GITHUB_REPOSITORY" --json tagName | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to read latest release' }
+          $tag = if ('${{ matrix.scenario }}' -eq 'update') { 'v0.1.0' } else { $latest.tagName }
+          $version = $tag.Substring(1)
+          $name = "yysls-auto-guqin_${version}_x64-setup.exe"
+          gh release download $tag --repo "$env:GITHUB_REPOSITORY" --pattern $name --dir artifacts/installer
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to download test installer' }
+          "path=$((Resolve-Path (Join-Path 'artifacts/installer' $name)).Path)" >> $env:GITHUB_OUTPUT
+          "expected=$($latest.tagName.Substring(1))" >> $env:GITHUB_OUTPUT
+      - name: Verify installed desktop application
+        shell: pwsh
+        run: ./scripts/windows-native-smoke.ps1 -Installer '${{ steps.installer.outputs.path }}' -Scenario '${{ matrix.scenario }}' -ExpectedVersion '${{ steps.installer.outputs.expected }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-${{ matrix.scenario }}-evidence
+          path: artifacts/
