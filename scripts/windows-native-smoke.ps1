@@ -11,11 +11,16 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) {
 $testDirectory = Join-Path $env:RUNNER_TEMP "guqin-native-$Scenario"
 $installedApp = Join-Path $testDirectory 'yysls-auto-guqin.exe'
 $receiverProcess = $null
+$debugPolicy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+$debugApplications = @('yysls-auto-guqin.exe', 'io.github.migo-ovo.yysls-auto-guqin')
 New-Item -ItemType Directory -Path artifacts -Force | Out-Null
 try {
   $installation = Start-Process -FilePath $Installer -ArgumentList @('/S', "/D=$testDirectory") -WindowStyle Hidden -PassThru -Wait
   if ($installation.ExitCode -ne 0) { throw "Installation failed: $($installation.ExitCode)" }
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9338'
+  New-Item -Path $debugPolicy -Force | Out-Null
+  foreach ($application in $debugApplications) {
+    New-ItemProperty -LiteralPath $debugPolicy -Name $application -PropertyType String -Value '--remote-debugging-port=9338' -Force | Out-Null
+  }
   $null = Start-Process -FilePath $installedApp -WindowStyle Hidden -PassThru -RedirectStandardOutput 'artifacts/native-app.stdout.log' -RedirectStandardError 'artifacts/native-app.stderr.log'
   $ready = $false
   for ($attempt = 0; $attempt -lt 60; $attempt++) {
@@ -62,5 +67,8 @@ try {
   }
   Get-Process yysls-auto-guqin -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $installedApp } | ForEach-Object {
     Stop-Process -Id $_.Id -ErrorAction SilentlyContinue
+  }
+  foreach ($application in $debugApplications) {
+    Remove-ItemProperty -LiteralPath $debugPolicy -Name $application -ErrorAction SilentlyContinue
   }
 }

@@ -55,6 +55,8 @@ macOS 默认 `signingIdentity: "-"`，生成 ad-hoc 应用。需要 Developer ID
 
 Windows 以普通权限、当前用户安装。游戏提升权限时，手动以相同权限运行工具。使用 Authenticode 证书时配置 Tauri 的 Windows 签名设置或组织的外部签名服务；证书与服务凭据只放在 Secrets。
 
+NSIS 保留简中和英文文本，关闭额外语言选择对话框。语言选择会阻塞 Updater 的 `/P /UPDATE /R` 安装流程，这一行为已在隔离 Windows runner 复现。
+
 ## 发布
 
 1. 更新 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`Cargo.lock`、`tauri.conf.json` 的版本及 `docs/RELEASE_NOTES.md`。
@@ -74,6 +76,8 @@ cargo run --manifest-path src-tauri/Cargo.toml --locked --example verify_release
 ```
 
 检查器允许下载同版本，使用应用内置公钥验证包及签名版本，并将结果写入 `artifacts/update-verification.json`；它不会安装更新。Windows 示例程序单独嵌入 Common Controls 6 清单，主应用的清单由 Tauri 生成。
+
+`Native Windows` 和 `Native macOS` 工作流在发布成功后运行，也可手动触发。Windows 使用隔离 runner 的专用接收窗口，并从 0.1.0 验证真实更新；WebView2 调试策略只绑定本应用，退出联测时清理。macOS 检查打包应用启动、曲库读写、代码签名、窗口枚举、权限边界及真实更新下载。两者均保留日志与截图或 JSON 记录，游戏接收单独验收。
 
 ## 输入 API 依据
 

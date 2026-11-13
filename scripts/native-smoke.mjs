@@ -19,7 +19,9 @@ try {
       { command, args },
     );
   await page.getByLabel("曲谱名称").waitFor();
-  await page.getByText("已保存", { exact: true }).waitFor();
+  await page.waitForFunction(async () =>
+    Boolean(await window.__TAURI_INTERNALS__.invoke("load_workspace")),
+  );
   const workspace = await invoke("load_workspace");
   await mkdir("artifacts", { recursive: true });
   await writeFile(
@@ -28,12 +30,14 @@ try {
   );
   const permissions = await invoke("permissions", { prompt: false });
   assert.equal(permissions.platform, "windows");
+  await page.getByLabel("关闭演奏面板", { exact: true }).click();
   await page.getByLabel("新建曲谱", { exact: true }).click();
   await page.getByRole("button", { name: "粘贴", exact: true }).click();
   await page
     .getByLabel("导入内容")
     .fill("KEY Q 150\nKEY Shift+Q 150\nKEY Ctrl+E 150");
   await page.getByRole("button", { name: "替换当前曲谱" }).click();
+  await page.getByLabel("展开设置", { exact: true }).click();
   await page.getByLabel("刷新窗口", { exact: true }).click();
   const target = (await invoke("list_targets")).find(
     (t) => t.title === receiverTitle,
@@ -42,6 +46,7 @@ try {
   await page.getByLabel("目标游戏窗口").selectOption(target.id);
   await page.getByRole("radio", { name: "后台定向输入" }).check();
   await page.getByLabel("开始前预留毫秒").fill("100");
+  await page.getByLabel("关闭演奏面板", { exact: true }).click();
   await page.evaluate(async () => {
     window.__smokePlayback = [];
     const handler = window.__TAURI_INTERNALS__.transformCallback((event) =>
@@ -89,6 +94,7 @@ try {
   await page.getByLabel("曲谱名称").waitFor();
   assert.equal(await page.getByLabel("曲谱名称").inputValue(), "原生冒烟");
   await page.screenshot({ path: "artifacts/native-workbench.png" });
+  await page.getByLabel("展开设置", { exact: true }).click();
   await page
     .locator(".inspector-tabs")
     .getByRole("button", { name: "设置", exact: true })
@@ -102,7 +108,10 @@ try {
   await invoke("save_workspace", { workspace });
   await page.reload();
   await page.getByLabel("曲谱名称").waitFor();
-  await page.getByText("已保存", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel("曲谱名称").inputValue(),
+    workspace.scores.find((score) => score.id === workspace.activeId).title,
+  );
   await page.screenshot({ path: "artifacts/native-default.png" });
   await writeFile(
     "artifacts/native-smoke.json",

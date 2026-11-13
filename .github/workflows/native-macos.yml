@@ -1,0 +1,54 @@
+name: Native macOS
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: native-macos
+  cancel-in-progress: false
+jobs:
+  native:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: aarch64
+          - os: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Download published application
+        id: app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          version="${tag#v}"
+          name="yysls-auto-guqin_${version}_${{ matrix.arch }}.app.tar.gz"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir artifacts/installer
+          directory="$RUNNER_TEMP/guqin-native"
+          mkdir -p "$directory"
+          tar -xzf "artifacts/installer/$name" -C "$directory"
+          apps=("$directory"/*.app)
+          test "${#apps[@]}" = 1
+          echo "path=${apps[0]}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Verify native startup and permission boundary
+        run: bash scripts/macos-native-smoke.sh '${{ steps.app.outputs.path }}' '${{ steps.app.outputs.version }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-macos-${{ matrix.arch }}-evidence
+          path: artifacts/
