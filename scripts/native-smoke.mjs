@@ -94,7 +94,6 @@ try {
   await page.getByLabel("曲谱名称").waitFor();
   assert.equal(await page.getByLabel("曲谱名称").inputValue(), "原生冒烟");
   await page.screenshot({ path: "artifacts/native-workbench.png" });
-  await page.getByLabel("展开设置", { exact: true }).click();
   await page
     .locator(".inspector-tabs")
     .getByRole("button", { name: "设置", exact: true })
