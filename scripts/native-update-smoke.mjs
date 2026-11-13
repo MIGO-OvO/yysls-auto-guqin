@@ -35,6 +35,10 @@ try {
   await page
     .getByText(`新版本 ${expectedVersion}`, { exact: true })
     .waitFor({ timeout: 60000 });
+  assert(
+    (await page.locator(".release-notes").innerText()).trim().length > 0,
+    "release notes were not displayed",
+  );
   await page.evaluate(() => {
     window.__updateProgress = [];
     new MutationObserver(() => {

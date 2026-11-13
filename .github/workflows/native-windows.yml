@@ -1,6 +1,12 @@
 name: Native Windows
 on:
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: 联测项目
+        type: choice
+        default: all
+        options: [all, engine, update]
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -18,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [engine, update]
+        scenario: ${{ fromJSON(inputs.scenario == 'engine' && '["engine"]' || inputs.scenario == 'update' && '["update"]' || '["engine","update"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

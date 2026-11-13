@@ -72,6 +72,8 @@ NSIS 保留简中和英文文本，关闭额外语言选择对话框。语言选
 在项目根目录可运行真实更新下载检查：
 
 ```sh
+npm ci
+npm run build
 cargo run --manifest-path src-tauri/Cargo.toml --locked --example verify_release --features tauri/custom-protocol
 ```
 

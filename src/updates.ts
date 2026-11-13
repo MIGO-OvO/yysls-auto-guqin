@@ -47,11 +47,15 @@ export class Updates {
 
   async download() {
     if (!this.update) return;
+    const metadata = {
+      version: this.update.version,
+      notes: this.update.body,
+    };
     let downloaded = 0;
     let total: number | undefined;
     this.changed({
       phase: "downloading",
-      version: this.update.version,
+      ...metadata,
       downloaded,
     });
     try {
@@ -60,14 +64,14 @@ export class Updates {
         if (event.event === "Progress") downloaded += event.data.chunkLength;
         this.changed({
           phase: "downloading",
-          version: this.update!.version,
+          ...metadata,
           downloaded,
           total,
         });
       });
       this.changed({
         phase: "ready",
-        version: this.update.version,
+        ...metadata,
         downloaded,
         total,
       });

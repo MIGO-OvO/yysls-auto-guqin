@@ -27,6 +27,7 @@ it("handles no update, metadata, progress and a separate confirmed installation"
   await updater.download();
   expect(states.at(-1)).toMatchObject({
     phase: "ready",
+    notes: "修复演奏",
     downloaded: 10,
     total: 10,
   });
