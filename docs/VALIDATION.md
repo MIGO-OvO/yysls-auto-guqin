@@ -1,10 +1,27 @@
 # 验证记录
 
-验证版本：0.1.5，2026-11-13。支持 Windows x64 与 macOS Apple Silicon；不再维护 macOS Intel。
+支持 Windows x64 与 macOS Apple Silicon；不再维护 macOS Intel。
+
+## 0.1.6 发布验证记录（2026-11-14）
+
+[正式版本](https://github.com/MIGO-OvO/yysls-auto-guqin/releases/tag/v0.1.6) · [自动发布](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43585109592) · [源码 CI](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43585101768) · [Windows 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43586221410) · [macOS 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43586221531)，均已通过。
+
+| 范围 | 结果 |
+| --- | --- |
+| 源码与界面 | 21 项 TypeScript 单元测试、13 项 Rust 核心测试、11 项 Playwright 场景通过；Windows 与 macOS 的格式、完整 Rust 测试和 Clippy 检查通过 |
+| 发布资产 | 6 个文件全部下载，SHA256 与 GitHub Release 记录一致；Windows 安装包版本为 0.1.6 |
+| 自动更新 | latest 指向 0.1.6，清单仅含 windows-x86_64 与 darwin-aarch64；下载地址、发布说明及签名文件一致，两平台真实更新下载和内置公钥验签通过 |
+| Windows 安装与演奏 | 隔离 runner 安装 0.1.6，原生界面向独立接收窗口演奏，曲库保存、重载与快捷键检查通过 |
+| Windows 升级 | 0.1.0 升级到 0.1.6，确认安装、取消、进度、自动重启、曲库保留及主题迁移通过 |
+| macOS Apple Silicon | arm64 应用启动、曲库读写及 ad-hoc 签名检查通过；原生 probe 发送游戏按键数为 0，实际游戏接收待验收 |
+
+Windows 0.1.6 安装包 SHA256：`a39a055be9b16dd35b462b128d2cbfec18e14cd87d54d6b9c7b818c124ef597d`。
+
+实体 MIDI 键盘联测、macOS 更新安装与重启、游戏实际接收仍待现场验收。MIDI 功能的源码验证与实体设备验收步骤见下文。
+
+## 0.1.5 发布验证记录（2026-11-13）
 
 [自动发布](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43403977583) · [源码 CI](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43403964589) · [Windows 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43405624151) · [macOS 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43405624263)，均已通过。
-
-## 0.1.5 发布验证记录
 
 | 范围                                      | 状态   | 证据                                                                                                                        |
 | ----------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
@@ -37,7 +54,7 @@ Windows 0.1.5 安装包 SHA256：`e3b5c8443b14ef54971a312134736479ad796a26595e74
 
 Windows 主机完成原生 MIDI 设备枚举，当前检测到 0 个输入端口，未进行实体 MIDI 键盘联测。新增功能的验证范围如下：
 
-本地源码构建、21 项 TypeScript 单元测试、13 项 Rust 测试、11 项 Playwright 场景及 Rust Clippy 全目标检查通过。此记录对应新增功能的源码，安装包仍以已发布版本为准。
+0.1.6 源码构建、21 项 TypeScript 单元测试、13 项 Rust 测试、11 项 Playwright 场景及 Rust Clippy 全目标检查通过。
 
 - Rust 录制器：按下、抬起、零力度 Note On、同音重触发、分通道、CC64 延音、All Notes Off、停止时补齐音长和录制上限。
 - 转换：完整 88 键、音级保留、先选旋律再折叠、八度边界走向、装饰音与声部连续性、网格量化和录音开头等待裁剪。
