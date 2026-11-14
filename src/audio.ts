@@ -1,4 +1,5 @@
 import { schedule, type Score } from "./score";
+import type { MidiTake } from "./midi";
 
 // AudioContext's audio clock schedules preview; no JS timers drive game input.
 export class PreviewAudio {
@@ -29,7 +30,7 @@ export class PreviewAudio {
     if (this.context.state !== "running") await this.context.resume();
   }
 
-  tone(midi: number, seconds = 0.7, at?: number) {
+  tone(midi: number, seconds = 0.7, at?: number, velocity = 1) {
     const ctx = this.context;
     if (!ctx) return;
     const when = at ?? ctx.currentTime + 0.005;
@@ -44,7 +45,7 @@ export class PreviewAudio {
     overtone.gain.value = 0.12;
     gain.gain.setValueAtTime(0, when);
     gain.gain.linearRampToValueAtTime(
-      0.28,
+      0.28 * Math.max(0.01, Math.min(1, velocity)),
       when + Math.min(0.008, duration / 3),
     );
     gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
@@ -92,6 +93,23 @@ export class PreviewAudio {
           this.offset,
       ),
     );
+  }
+  async playMidi(take: MidiTake) {
+    await this.unlock();
+    this.stop();
+    const origin = this.context!.currentTime + 0.04;
+    this.startedAt = origin;
+    this.offset = 0;
+    this.duration = take.durationMs;
+    for (const note of take.notes) {
+      if (note.channel !== 9)
+        this.tone(
+          note.midi,
+          (note.endMs - note.startMs) / 1000,
+          origin + note.startMs / 1000,
+          note.velocity / 127,
+        );
+    }
   }
   stop() {
     for (const voice of this.voices) {

@@ -1,4 +1,5 @@
 pub mod engine;
+mod midi;
 pub mod model;
 pub mod platform;
 mod storage;
@@ -128,6 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Hotkeys(Mutex::new((String::new(), String::new()))))
         .manage(storage::Storage::default())
+        .manage(midi::MidiDevices::default())
         .setup(|app| {
             let handle = app.handle().clone();
             app.manage(Engine::new(move |snapshot| {
@@ -180,6 +182,11 @@ pub fn run() {
             stop,
             configure_shortcuts,
             set_shortcut_recording,
+            midi::midi_inputs,
+            midi::connect_midi,
+            midi::disconnect_midi,
+            midi::start_midi_recording,
+            midi::stop_midi_recording,
             storage::load_workspace,
             storage::save_workspace
         ])

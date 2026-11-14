@@ -1,4 +1,10 @@
 import { parseMidi } from "midi-file";
+import {
+  adaptMidi,
+  type MidiConversion,
+  type MidiNote,
+  type MidiTake,
+} from "./midi";
 
 export interface Note {
   id: string;
@@ -412,6 +418,7 @@ export function importMidi(
   bytes: Uint8Array,
   title: string,
   timing: Timing,
+  conversion: MidiConversion = "smart",
 ): ImportResult {
   if (bytes.length > 20 * 1024 * 1024) throw new Error("MIDI 文件超过 20MB");
   const data = parseMidi(bytes);
@@ -419,11 +426,27 @@ export function importMidi(
     throw new Error("请把 MIDI 格式 2 转为格式 0 或 1");
   const division = data.header.ticksPerBeat;
   if (!division) throw new Error("暂不支持 SMPTE 时间码 MIDI");
-  const raw: { tick: number; end: number; midi: number }[] = [];
+  const raw: {
+    tick: number;
+    end: number;
+    midi: number;
+    channel: number;
+    velocity: number;
+    track: number;
+  }[] = [];
   const tempos: { tick: number; us: number }[] = [{ tick: 0, us: 500000 }];
-  for (const track of data.tracks) {
+  for (const [trackIndex, track] of data.tracks.entries()) {
     let tick = 0;
-    const open = new Map<string, { tick: number; midi: number }[]>();
+    const open = new Map<
+      string,
+      {
+        tick: number;
+        midi: number;
+        channel: number;
+        velocity: number;
+        track: number;
+      }[]
+    >();
     for (const e of track) {
       tick += e.deltaTime;
       if (e.type === "setTempo") {
@@ -435,20 +458,25 @@ export function importMidi(
         const key = `${e.channel}:${e.noteNumber}`;
         if (e.type === "noteOn" && e.velocity > 0) {
           const queue = open.get(key) ?? [];
-          queue.push({ tick, midi: e.noteNumber });
+          queue.push({
+            tick,
+            midi: e.noteNumber,
+            channel: e.channel,
+            velocity: e.velocity,
+            track: trackIndex,
+          });
           open.set(key, queue);
         } else {
           const n = open.get(key)?.shift();
-          if (n) raw.push({ tick: n.tick, end: tick, midi: n.midi });
+          if (n) raw.push({ ...n, end: tick });
         }
       }
     }
     for (const queue of open.values())
       for (const n of queue)
         raw.push({
-          tick: n.tick,
+          ...n,
           end: Math.max(n.tick + division / 4, tick),
-          midi: n.midi,
         });
   }
   if (!raw.length) throw new Error("MIDI 中没有旋律音符（打击乐通道不导入）");
@@ -486,38 +514,50 @@ export function importMidi(
       (((tick - tempoMap[low].tick) / division) * tempoMap[low].us) / 1000
     );
   };
-  const min = raw.reduce((value, n) => Math.min(value, n.midi), 127);
-  const max = raw.reduce((value, n) => Math.max(value, n.midi), 0);
-  let shift = max > 83 ? -12 * Math.ceil((max - 83) / 12) : 0;
-  if (min + shift < 48) shift += 12 * Math.ceil((48 - (min + shift)) / 12);
-  const cells = new Map<number, Note>();
-  let folded = 0;
-  for (const n of raw) {
-    let midi = n.midi + shift;
-    while (midi < 48) midi += 12;
-    while (midi > 83) midi -= 12;
-    if (midi !== n.midi) folded++;
-    const col = Math.max(0, Math.round(toMs(n.tick) / stepMs(score)));
-    const len = Math.max(
-      1,
-      Math.min(64, Math.round((toMs(n.end) - toMs(n.tick)) / stepMs(score))),
-    );
-    if (!cells.has(col) || midi > cells.get(col)!.midi!)
-      cells.set(col, { id: uid(), midi, col, len });
-  }
-  score.notes = [...cells.values()].sort((a, b) => a.col - b.col);
-  score.cols = Math.max(
-    32,
-    score.notes.reduce(
-      (end, n) => Math.max(end, Math.ceil((n.col + n.len) / 16) * 16),
-      0,
-    ),
+  const notes: MidiNote[] = raw.map((n) => ({
+    ...n,
+    startMs: toMs(n.tick),
+    endMs: Math.max(toMs(n.tick) + 1, toMs(n.end)),
+  }));
+  const durationMs = notes.reduce((end, n) => Math.max(end, n.endMs), 0);
+  const result = importMidiTake(
+    { notes, durationMs },
+    title,
+    score.timing,
+    conversion,
   );
+  if (tempoMap.length > 1)
+    result.warnings.push("MIDI 速度变化已换算为网格时间。");
+  return result;
+}
+
+export function importMidiTake(
+  take: MidiTake,
+  title: string,
+  timing: Timing,
+  conversion: MidiConversion = "smart",
+  trimStart = false,
+): ImportResult {
+  const score = {
+    ...emptyScore(title),
+    timing: {
+      bpm: number(timing.bpm, 30, 300, "BPM"),
+      gridFactor: number(timing.gridFactor, 4, 32, "网格"),
+      defaultLen: number(timing.defaultLen, 1, 16, "新音长"),
+    },
+  };
+  if (![4, 8, 16, 32].includes(score.timing.gridFactor))
+    throw new Error("网格需要 4、8、16 或 32");
+  const result = adaptMidi(take, stepMs(score), conversion, trimStart);
+  score.notes = result.notes.map((n) => ({ ...n, id: uid() }));
+  const last = score.notes.reduce((end, n) => Math.max(end, n.col + n.len), 0);
+  number(last, 0, 1000000, "曲尾");
+  score.cols = Math.max(32, Math.ceil(last / 16) * 16);
   const warnings = [
-    `按 1/${timing.gridFactor} 量化，${raw.length - cells.size} 个叠音已取最高音。`,
+    `按 1/${timing.gridFactor} 量化，${result.removed} 个叠音已${conversion === "smart" ? "按旋律优先压缩" : "取折叠后的最高音"}。`,
   ];
-  if (folded) warnings.push(`${folded} 个音已移八度到 C3–B5。`);
-  if (tempoMap.length > 1) warnings.push("MIDI 速度变化已换算为网格时间。");
+  if (result.folded)
+    warnings.push(`${result.folded} 个音已调整八度到 36 键范围。`);
   return { score, warnings };
 }
 

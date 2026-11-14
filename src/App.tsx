@@ -45,6 +45,8 @@ import {
   X,
 } from "lucide-react";
 import PianoRoll, { type Tool } from "./PianoRoll";
+import MidiInputPanel from "./MidiInputPanel";
+import type { MidiTake } from "./midi";
 import { PreviewAudio } from "./audio";
 import {
   appendScore,
@@ -167,6 +169,9 @@ export default function App() {
   const [importValue, setImportValue] = useState("");
   const [importTitle, setImportTitle] = useState("导入的曲谱");
   const [midiResult, setMidiResult] = useState<ImportResult | null>(null);
+  const [midiOpen, setMidiOpen] = useState(false);
+  const [midiTake, setMidiTake] = useState<MidiTake | null>(null);
+  const [midiPending, setMidiPending] = useState(false);
   const [append, setAppend] = useState(false);
   const [exportScore, setExportScore] = useState<Score | null>(null);
   const [exportKind, setExportKind] = useState<"json" | "txt">("json");
@@ -725,6 +730,18 @@ export default function App() {
     if (target && !list.some((t) => t.id === target.id && t.pid === target.pid))
       setTarget(null);
   }
+  async function closeMidi() {
+    if (midiPending) return;
+    const take = await desktop.disconnectMidi();
+    if (take.notes.length) setMidiTake(take);
+    setMidiOpen(false);
+    try {
+      await queueShortcutRecording(false);
+    } catch (error) {
+      setHotkeyStatus(errorText(error));
+      throw new Error(`恢复快捷键失败：${errorText(error)}。请重新应用快捷键。`);
+    }
+  }
 
   if (!loaded || !score)
     return (
@@ -742,6 +759,7 @@ export default function App() {
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (midiOpen) return;
         const file = e.dataTransfer.files[0];
         if (file) void safely(() => openFile(file));
       }}
@@ -851,6 +869,16 @@ export default function App() {
           导入曲谱
         </button>
         <footer className="library-footer">
+          <button
+            disabled={busy}
+            onClick={() => void safely(async () => {
+              await queueShortcutRecording(true);
+              setMidiOpen(true);
+            })}
+          >
+            <Keyboard size={17} />
+            MIDI 录制
+          </button>
           <button
             onClick={() => {
               setSettingsOpen((v) => !v);
@@ -1752,6 +1780,23 @@ export default function App() {
         }}
       />
 
+      {midiOpen && (
+        <Dialog title="MIDI 录制" close={() => void safely(closeMidi)} wide>
+          <MidiInputPanel
+            take={midiTake}
+            onTake={setMidiTake}
+            timing={score.timing}
+            volume={settings.volume}
+            onBusy={setMidiPending}
+            onCreate={(converted) => void safely(async () => {
+              await closeMidi();
+              setScores((all) => [...all, converted]);
+              choose(converted.id);
+              notify(`已保存「${converted.title}」的 36 键曲谱`);
+            })}
+          />
+        </Dialog>
+      )}
       {importOpen && (
         <Dialog title="导入曲谱" close={() => setImportOpen(false)} wide>
           <div className="dialog-content">
@@ -1898,8 +1943,15 @@ export default function App() {
             <h3>导入与保存</h3>
             <p>
               支持原项目 JSON、简谱、键位链、MIDI 与 TXT 命令。MIDI
-              按网格量化、同列取最高音。曲库自动保存在本机；导出 JSON
+              结合音高、力度和声部连续性选择旋律，调整八度到 36 键并按网格量化。
+              曲库自动保存在本机；导出 JSON
               可跨电脑保存。示例“山间清音”为内置原创练习旋律。
+            </p>
+            <h3>MIDI 键盘</h3>
+            <p>
+              在左侧打开“MIDI 录制”，选择设备后录制演奏。停止后可调整 BPM
+              和网格，对比试听录音与 36 键结果，另存新曲谱或导出全音域 MIDI。
+              录制支持延音踏板；设备输入用于试听和录制。
             </p>
             <h3>权限</h3>
             <p>

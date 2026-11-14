@@ -2,6 +2,9 @@
 
 ## 目录
 
+- `src/midi.ts`：全音域演奏数据、旋律选择、八度路径优化及录制 MIDI 导出。
+- `src/MidiInputPanel.tsx`：设备连接、录制、转换预览与对比试听。
+- `src-tauri/src/midi.rs`：WinMM / CoreMIDI 输入、单调时钟录制和延音踏板处理。
 - `src/score.ts`：36 键表、统一乐谱、格式导入、命令导出与试听时间线。
 - `src/PianoRoll.tsx`：网格、拖动、音长调整和选择。
 - `src/App.tsx`：曲库、撤销重做、导入预览、演奏与设置。
