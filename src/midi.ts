@@ -191,12 +191,28 @@ export function adaptMidi(
   };
 }
 
-export function exportMidiTake(take: MidiTake): Uint8Array {
+export function exportMidiTake(
+  take: MidiTake,
+  {
+    bpm = 120,
+    name,
+    program,
+  }: { bpm?: number; name?: string; program?: number } = {},
+): Uint8Array {
   validateTake(take);
+  if (!Number.isFinite(bpm) || bpm < 4 || bpm > 1000)
+    throw new Error("MIDI 速度无效");
+  if (
+    program !== undefined &&
+    (!Number.isInteger(program) || program < 0 || program > 127)
+  )
+    throw new Error("MIDI 乐器编号无效");
+  const tempo = Math.round(60000000 / bpm);
+  const ticksPerMs = 480000 / tempo;
   const events: { tick: number; event: MidiEvent }[] = [];
   for (const n of take.notes) {
-    const start = Math.round(n.startMs * 0.96);
-    const end = Math.max(start + 1, Math.round(n.endMs * 0.96));
+    const start = Math.round(n.startMs * ticksPerMs);
+    const end = Math.max(start + 1, Math.round(n.endMs * ticksPerMs));
     events.push(
       {
         tick: start,
@@ -227,14 +243,34 @@ export function exportMidiTake(take: MidiTake): Uint8Array {
   );
   let previous = 0;
   const track: MidiEvent[] = [
-    { deltaTime: 0, meta: true, type: "setTempo", microsecondsPerBeat: 500000 },
+    { deltaTime: 0, meta: true, type: "setTempo", microsecondsPerBeat: tempo },
   ];
+  if (name)
+    track.push({
+      deltaTime: 0,
+      meta: true,
+      type: "trackName",
+      text: Array.from(new TextEncoder().encode(name), (byte) =>
+        String.fromCharCode(byte),
+      ).join(""),
+    });
+  if (program !== undefined) {
+    for (const channel of new Set(take.notes.map((n) => n.channel))) {
+      if (channel !== 9)
+        track.push({
+          deltaTime: 0,
+          type: "programChange",
+          channel,
+          programNumber: program,
+        });
+    }
+  }
   for (const { tick, event } of events) {
     track.push({ ...event, deltaTime: tick - previous });
     previous = tick;
   }
   track.push({
-    deltaTime: Math.max(0, Math.round(take.durationMs * 0.96) - previous),
+    deltaTime: Math.max(0, Math.round(take.durationMs * ticksPerMs) - previous),
     meta: true,
     type: "endOfTrack",
   });

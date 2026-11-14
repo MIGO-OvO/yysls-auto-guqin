@@ -822,6 +822,11 @@ kbd {
   margin-left: auto;
   color: var(--muted);
 }
+.instrument-select {
+  width: 88px;
+  padding: 4px 7px;
+  font-size: 11px;
+}
 input[type="range"] {
   accent-color: var(--accent);
   border: 0;
@@ -1453,6 +1458,13 @@ dialog > footer {
   line-height: 1.7;
   font-size: 10px;
 }
+.midi-export-preview {
+  color: var(--muted);
+  line-height: 1.8;
+}
+.midi-export-preview p {
+  margin-top: 12px;
+}
 .help-content {
   color: var(--muted);
   line-height: 1.9;
@@ -1527,6 +1539,9 @@ dialog > footer {
 .midi-device-row label {
   flex: 1;
   min-width: 0;
+}
+.midi-device-row .midi-instrument {
+  flex: 0 0 100px;
 }
 .midi-panel > .muted-text,
 .midi-panel > .danger-text {

@@ -2,6 +2,18 @@
 
 支持 Windows x64 与 macOS Apple Silicon；不再维护 macOS Intel。
 
+## 曲谱 MIDI 导出与六种音色（2026-11-15）
+
+本机生产构建、24 项 TypeScript 单元测试与 15 项 Playwright 场景通过。
+
+Windows x64 NSIS 测试包构建完成，版本号保留为 0.1.6，文件位于 `artifacts/audio/yysls-auto-guqin_0.1.6-midi-instruments_x64-setup.exe`。本次未进行安装流程验收。
+
+- MIDI 文件经解码和重新导入核对，覆盖和弦、重叠音符、长音、空拍、分数 BPM、中文曲名、乐器编号及同音重触发。
+- Chromium 的真实 Web Audio 渲染覆盖钢琴、古琴、箜篌、箫、二胡、埙，核对弦音衰减、管弦持续音、力度变化、7 秒长音、44.1 / 48 kHz 下的 88 键两端及释音后静音。
+- 界面核对音色持久化、录制窗口共用选择、MIDI 下载及 1440 × 920 / 900 × 640 布局；排程检查覆盖 100000 个音符、64 声部上限、取消启动及按通道的踏板松音。
+
+30 秒对比片段位于 `artifacts/audio/instrument-comparison.wav`，依次为钢琴、古琴、箜篌、箫、二胡、埙，每种 5 秒。与游戏录音、真实乐器的听感对照及 macOS 音频待试听验收。
+
 ## 0.1.6 发布验证记录（2026-11-14）
 
 [正式版本](https://github.com/MIGO-OvO/yysls-auto-guqin/releases/tag/v0.1.6) · [自动发布](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43585109592) · [源码 CI](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43585101768) · [Windows 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43586221410) · [macOS 原生联测](https://github.com/MIGO-OvO/yysls-auto-guqin/actions/runs/43586221531)，均已通过。

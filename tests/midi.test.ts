@@ -6,7 +6,13 @@ import {
   type MidiNote,
   type MidiTake,
 } from "../src/midi";
-import { emptyScore, importMidi, importMidiTake, schedule } from "../src/score";
+import {
+  emptyScore,
+  exportMidi,
+  importMidi,
+  importMidiTake,
+  schedule,
+} from "../src/score";
 
 const note = (
   midi: number,
@@ -23,6 +29,94 @@ const note = (
 const take = (notes: MidiNote[]): MidiTake => ({
   notes,
   durationMs: notes.reduce((end, n) => Math.max(end, n.endMs), 0),
+});
+
+describe("score MIDI export", () => {
+  it("retains chords, long overlapping notes, rests, tempo and UTF-8 titles", () => {
+    const score = emptyScore("清音·试奏");
+    score.timing.bpm = 75;
+    score.endCol = 50;
+    score.notes = [
+      { id: "a", midi: 60, col: 2, len: 40 },
+      { id: "b", midi: 64, col: 2, len: 2 },
+      { id: "c", midi: 60, col: 42, len: 2 },
+      { id: "command", midi: null, keys: "F1", col: 46, len: 2 },
+    ];
+    const original = structuredClone(score);
+    const data = parseMidi(exportMidi(score, 107));
+    expect(data.header).toMatchObject({
+      format: 0,
+      ticksPerBeat: 480,
+      numTracks: 1,
+    });
+    expect(data.tracks[0]).toContainEqual({
+      deltaTime: 0,
+      meta: true,
+      type: "setTempo",
+      microsecondsPerBeat: 800000,
+    });
+    expect(data.tracks[0]).toContainEqual({
+      deltaTime: 0,
+      type: "programChange",
+      channel: 0,
+      programNumber: 107,
+    });
+    const title = data.tracks[0].find((e) => e.type === "trackName");
+    expect(
+      title?.type === "trackName" &&
+        new TextDecoder().decode(
+          Uint8Array.from(title.text, (c) => c.charCodeAt(0)),
+        ),
+    ).toBe(score.title);
+    let tick = 0;
+    const notes: [string, number, number][] = [];
+    for (const event of data.tracks[0]) {
+      tick += event.deltaTime;
+      if (event.type === "noteOn" || event.type === "noteOff")
+        notes.push([event.type, event.noteNumber, tick]);
+    }
+    expect(notes).toEqual([
+      ["noteOn", 64, 480],
+      ["noteOn", 60, 480],
+      ["noteOff", 64, 960],
+      ["noteOff", 60, 10080],
+      ["noteOn", 60, 10080],
+      ["noteOff", 60, 10560],
+    ]);
+    expect(tick).toBe(12000);
+    expect(score).toEqual(original);
+  });
+
+  it("round-trips a melody at fractional BPM without losing grid timing", () => {
+    const score = emptyScore("round trip");
+    score.timing = { bpm: 97.5, gridFactor: 16, defaultLen: 1 };
+    score.notes = [48, 61, 83].map((midi, i) => ({
+      id: String(i),
+      midi,
+      col: i * 3 + 2,
+      len: 2,
+    }));
+    const imported = importMidi(
+      exportMidi(score),
+      "copy",
+      score.timing,
+      "fold",
+    ).score;
+    expect(
+      imported.notes.map(({ midi, col, len }) => ({ midi, col, len })),
+    ).toEqual(score.notes.map(({ midi, col, len }) => ({ midi, col, len })));
+  });
+
+  it("reports empty or command-only scores and invalid MIDI metadata", () => {
+    const score = emptyScore();
+    expect(() => exportMidi(score)).toThrow("没有可导出");
+    score.notes = [{ id: "command", midi: null, keys: "F1", col: 0, len: 1 }];
+    expect(() => exportMidi(score)).toThrow("没有可导出");
+    expect(() => exportMidiTake(take([note(60)]), { bpm: 0 })).toThrow("速度");
+    expect(() => exportMidiTake(take([note(60)]), { program: 128 })).toThrow(
+      "乐器编号",
+    );
+  });
 });
 
 describe("88-key performance adaptation", () => {

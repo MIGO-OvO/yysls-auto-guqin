@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Score } from "./score";
 import type { MidiMessage, MidiPort, MidiTake } from "./midi";
+import type { Instrument } from "./instruments";
 
 export const native = isTauri();
 export type InputMode = "foregroundScan" | "foregroundVirtual" | "background";
@@ -16,6 +17,7 @@ export interface Settings {
   appearanceVersion?: number;
   theme: "dark" | "light" | "system";
   volume: number;
+  instrument: Instrument;
   mode: InputMode;
   warmupMs: number;
   startShortcut: string;
@@ -53,6 +55,7 @@ export const defaultSettings: Settings = {
   appearanceVersion: 1,
   theme: "light",
   volume: 0.5,
+  instrument: "piano",
   mode: "foregroundScan",
   warmupMs: 3000,
   startShortcut: "F11",
@@ -137,7 +140,7 @@ export async function exportFile(name: string, contents: string | Uint8Array) {
       filters: [
         {
           name: name.endsWith(".mid")
-            ? "MIDI 录音"
+            ? "MIDI 乐谱"
             : name.endsWith(".json")
               ? "JSON 乐谱"
               : "TXT 命令",

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Play, RefreshCw, Square, ArrowDownToLine } from "lucide-react";
 import * as desktop from "./desktop";
 import { PreviewAudio } from "./audio";
+import { instruments, type Instrument } from "./instruments";
 import {
   exportMidiTake,
   type MidiConversion,
@@ -26,6 +27,8 @@ export default function MidiInputPanel({
   onTake,
   timing,
   volume,
+  instrument,
+  onInstrument,
   onCreate,
   onBusy,
 }: {
@@ -33,6 +36,8 @@ export default function MidiInputPanel({
   onTake: (take: MidiTake) => void;
   timing: Timing;
   volume: number;
+  instrument: Instrument;
+  onInstrument: (instrument: Instrument) => void;
   onCreate: (score: Score) => void;
   onBusy: (pending: boolean) => void;
 }) {
@@ -91,8 +96,8 @@ export default function MidiInputPanel({
   useEffect(() => {
     onBusy(pending);
   }, [pending, onBusy]);
-  function stopAudio() {
-    audio.current.stop();
+  function stopAudio(natural = false) {
+    audio.current.stop(natural);
     setPreview("none");
   }
   async function finish() {
@@ -127,6 +132,9 @@ export default function MidiInputPanel({
     audio.current.volume = volume;
   }, [volume]);
   useEffect(() => {
+    audio.current.instrument = instrument;
+  }, [instrument]);
+  useEffect(() => {
     let mounted = true;
     const listener = desktop.native
       ? desktop.onMidiInput((event) => {
@@ -137,14 +145,18 @@ export default function MidiInputPanel({
             if (recordingNow.current) setCount((n) => n + 1);
             setPressed((p) => [...new Set([...p, midi])]);
             if (previewNow.current === "none")
-              audio.current.tone(midi, 0.7, undefined, velocity / 127);
+              audio.current.noteOn(midi, velocity, channel);
           } else if (
             (status & 0xf0) === 0x80 ||
             ((status & 0xf0) === 0x90 && velocity === 0)
           ) {
             setPressed((p) => p.filter((n) => n !== midi));
+            audio.current.noteOff(midi, channel);
+          } else if ((status & 0xf0) === 0xb0 && midi === 64) {
+            audio.current.sustain(channel, velocity >= 64);
           } else if ((status & 0xf0) === 0xb0 && [120, 123].includes(midi)) {
             setPressed([]);
+            audio.current.releaseHeld(channel);
           }
           if (event.error)
             void act(async () => {
@@ -168,7 +180,7 @@ export default function MidiInputPanel({
       mounted = false;
       clearInterval(timer);
       if (listener) void listener.then((off) => off()).catch(() => {});
-      audio.current.stop();
+      audio.current.dispose();
     };
   }, []);
   useEffect(() => {
@@ -182,12 +194,14 @@ export default function MidiInputPanel({
             : parsed.result
               ? schedule(parsed.result.score).durationMs
               : 0;
-        if (audio.current.elapsedMs >= duration) stopAudio();
+        if (audio.current.elapsedMs >= duration) stopAudio(true);
       }
     }, 100);
     return () => clearInterval(timer);
   }, [recording, preview, take, parsed.result]);
-  useEffect(stopAudio, [mode, tempo, grid]);
+  useEffect(() => {
+    stopAudio();
+  }, [mode, tempo, grid]);
 
   return (
     <>
@@ -204,6 +218,7 @@ export default function MidiInputPanel({
                 void act(async () => {
                   await audio.current.unlock();
                   await inputListener.current;
+                  stopAudio();
                   connectedPort.current = "";
                   setPortId("");
                   if (id) await desktop.connectMidi(id);
@@ -220,6 +235,20 @@ export default function MidiInputPanel({
               {ports.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="midi-instrument">
+            试听音色
+            <select
+              aria-label="录制试听音色"
+              value={instrument}
+              onChange={(e) => onInstrument(e.target.value as Instrument)}
+            >
+              {Object.entries(instruments).map(([value, { name }]) => (
+                <option key={value} value={value}>
+                  {name}
                 </option>
               ))}
             </select>
@@ -427,7 +456,10 @@ export default function MidiInputPanel({
               if (
                 await desktop.exportFile(
                   `${title.trim() || "MIDI 录制"}.mid`,
-                  exportMidiTake(take!),
+                  exportMidiTake(take!, {
+                    name: title.trim() || "MIDI 录制",
+                    program: instruments[instrument].program,
+                  }),
                 )
               )
                 setExported(true);

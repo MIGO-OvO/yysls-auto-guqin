@@ -48,12 +48,14 @@ import PianoRoll, { type Tool } from "./PianoRoll";
 import MidiInputPanel from "./MidiInputPanel";
 import type { MidiTake } from "./midi";
 import { PreviewAudio } from "./audio";
+import { instruments, isInstrument, type Instrument } from "./instruments";
 import {
   appendScore,
   demoScore,
   emptyScore,
   exportCommands,
   exportJson,
+  exportMidi,
   formatTime,
   importMidi,
   importText,
@@ -174,7 +176,7 @@ export default function App() {
   const [midiPending, setMidiPending] = useState(false);
   const [append, setAppend] = useState(false);
   const [exportScore, setExportScore] = useState<Score | null>(null);
-  const [exportKind, setExportKind] = useState<"json" | "txt">("json");
+  const [exportKind, setExportKind] = useState<"json" | "txt" | "mid">("json");
   const [deleteScore, setDeleteScore] = useState<Score | null>(null);
   const [shortcuts, setShortcuts] = useState({
     start: desktop.defaultSettings.startShortcut,
@@ -188,6 +190,7 @@ export default function App() {
   const [update, setUpdate] = useState(initialUpdate);
   const [installConfirm, setInstallConfirm] = useState(false);
   const audio = useRef(new PreviewAudio());
+  useEffect(() => () => audio.current.dispose(), []);
   const updater = useRef(new Updates(setUpdate));
   const saveQueue = useRef(Promise.resolve());
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -329,6 +332,7 @@ export default function App() {
         setScores(initial);
         setActiveId(workspace?.activeId ?? initial[0].id);
         const prefs = { ...desktop.defaultSettings, ...workspace?.settings };
+        if (!isInstrument(prefs.instrument)) prefs.instrument = "piano";
         if (workspace && (workspace.settings.appearanceVersion ?? 0) < 1) {
           prefs.theme = "light";
           prefs.appearanceVersion = 1;
@@ -394,6 +398,10 @@ export default function App() {
     audio.current.volume = settings.volume;
     return () => media.removeEventListener("change", apply);
   }, [settings.theme, settings.volume]);
+
+  useEffect(() => {
+    audio.current.instrument = settings.instrument;
+  }, [settings.instrument]);
 
   useEffect(() => {
     if (!desktop.native || !score || busy) return;
@@ -463,7 +471,7 @@ export default function App() {
       const ms = audio.current.elapsedMs;
       setPreviewMs(ms);
       if (ms >= plan.durationMs) {
-        audio.current.stop();
+        audio.current.stop(true);
         setPreviewState("stopped");
       } else frame = requestAnimationFrame(tick);
     };
@@ -716,7 +724,9 @@ export default function App() {
         `${exportScore.title}.${exportKind}`,
         exportKind === "json"
           ? exportJson(exportScore)
-          : exportCommands(exportScore),
+          : exportKind === "mid"
+            ? exportMidi(exportScore, instruments[settings.instrument].program)
+            : exportCommands(exportScore),
       )
     ) {
       setExportScore(null);
@@ -1152,6 +1162,20 @@ export default function App() {
               <Keyboard size={16} />
               试听琴键
             </h2>
+            <select
+              className="instrument-select"
+              aria-label="试听音色"
+              value={settings.instrument}
+              onChange={(e) =>
+                setSettings((v) => ({ ...v, instrument: e.target.value as Instrument }))
+              }
+            >
+              {Object.entries(instruments).map(([value, { name }]) => (
+                <option key={value} value={value}>
+                  {name}
+                </option>
+              ))}
+            </select>
             <label className="volume">
               <Volume2 size={15} />
               <input
@@ -1787,6 +1811,10 @@ export default function App() {
             onTake={setMidiTake}
             timing={score.timing}
             volume={settings.volume}
+            instrument={settings.instrument}
+            onInstrument={(instrument) =>
+              setSettings((v) => ({ ...v, instrument }))
+            }
             onBusy={setMidiPending}
             onCreate={(converted) => void safely(async () => {
               await closeMidi();
@@ -1878,30 +1906,66 @@ export default function App() {
               >
                 TXT 演奏命令
               </button>
+              <button
+                className={exportKind === "mid" ? "selected" : ""}
+                onClick={() => setExportKind("mid")}
+              >
+                MIDI 乐谱
+              </button>
             </div>
-            <pre className="export-preview">
-              {exportKind === "json"
-                ? exportJson(exportScore)
-                : exportCommands(exportScore)}
-            </pre>
+            {exportKind === "mid" ? (
+              <div className="midi-export-preview">
+                <svg
+                  className="midi-score-preview"
+                  viewBox={`0 0 ${exportScore.cols} 36`}
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label="MIDI 导出音符"
+                >
+                  {exportScore.notes.filter((n) => n.midi !== null).map((n) => (
+                    <rect
+                      key={n.id}
+                      x={n.col}
+                      y={83 - n.midi!}
+                      width={n.len}
+                      height={0.8}
+                    />
+                  ))}
+                </svg>
+                <p>
+                  {instruments[settings.instrument].name} · {exportScore.timing.bpm} BPM · {exportScore.notes.filter((n) => n.midi !== null).length} 个音符
+                </p>
+                {exportScore.notes.some((n) => n.midi === null) && (
+                  <p>纯按键命令没有音高，导出时略过，保留对应空拍。</p>
+                )}
+              </div>
+            ) : (
+              <pre className="export-preview">
+                {exportKind === "json"
+                  ? exportJson(exportScore)
+                  : exportCommands(exportScore)}
+              </pre>
+            )}
           </div>
           <footer>
-            <button
-              className="quiet-button"
-              onClick={() =>
-                void safely(async () => {
-                  await navigator.clipboard.writeText(
-                    exportKind === "json"
-                      ? exportJson(exportScore)
-                      : exportCommands(exportScore),
-                  );
-                  notify("已复制");
-                })
-              }
-            >
-              <Copy size={14} />
-              复制
-            </button>
+            {exportKind !== "mid" && (
+              <button
+                className="quiet-button"
+                onClick={() =>
+                  void safely(async () => {
+                    await navigator.clipboard.writeText(
+                      exportKind === "json"
+                        ? exportJson(exportScore)
+                        : exportCommands(exportScore),
+                    );
+                    notify("已复制");
+                  })
+                }
+              >
+                <Copy size={14} />
+                复制
+              </button>
+            )}
             <button
               className="primary-button"
               onClick={() => void safely(exportNow)}

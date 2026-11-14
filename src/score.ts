@@ -1,6 +1,7 @@
 import { parseMidi } from "midi-file";
 import {
   adaptMidi,
+  exportMidiTake,
   type MidiConversion,
   type MidiNote,
   type MidiTake,
@@ -219,6 +220,30 @@ export function appendScore(score: Score, imported: Score): Score {
       Math.ceil((base + imported.cols * ratio) / 16) * 16,
     ),
   };
+}
+
+export function exportMidi(score: Score, program = 0): Uint8Array {
+  const step = stepMs(score);
+  const notes = sorted(score)
+    .filter((n) => n.midi !== null)
+    .map((n) => ({
+      midi: n.midi!,
+      channel: 0,
+      velocity: 100,
+      startMs: n.col * step,
+      endMs: (n.col + n.len) * step,
+    }));
+  if (!notes.length) throw new Error("曲谱中没有可导出的音符");
+  return exportMidiTake(
+    {
+      notes,
+      durationMs: notes.reduce(
+        (end, n) => Math.max(end, n.endMs),
+        (score.endCol ?? 0) * step,
+      ),
+    },
+    { bpm: score.timing.bpm, name: score.title, program },
+  );
 }
 
 export function exportJson(score: Score): string {
