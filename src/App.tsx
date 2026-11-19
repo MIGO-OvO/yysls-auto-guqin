@@ -708,12 +708,17 @@ export default function App() {
     }
   }, [importValue, importTitle, midiResult, score]);
   function applyImport() {
-    if (!parsed.result) return;
+    if (busy || !parsed.result) return;
     const imported = parsed.result.score;
-    if (append) commit(appendScore(score, imported));
-    else commit({ ...imported, id: score.id });
-    setStartCol(0);
-    setSelected(null);
+    if (midiResult) {
+      setScores((all) => [...all, imported]);
+      choose(imported.id);
+    } else {
+      if (append) commit(appendScore(score, imported));
+      else commit({ ...imported, id: score.id });
+      setStartCol(0);
+      setSelected(null);
+    }
     setImportOpen(false);
     notify(`已导入 ${imported.notes.length} 个音符`);
   }
@@ -1864,14 +1869,16 @@ export default function App() {
                 ))}
               </div>
             )}
-            <label className="check-setting">
-              <span>追加到当前曲谱末尾</span>
-              <input
-                type="checkbox"
-                checked={append}
-                onChange={(e) => setAppend(e.target.checked)}
-              />
-            </label>
+            {!midiResult && (
+              <label className="check-setting">
+                <span>追加到当前曲谱末尾</span>
+                <input
+                  type="checkbox"
+                  checked={append}
+                  onChange={(e) => setAppend(e.target.checked)}
+                />
+              </label>
+            )}
           </div>
           <footer>
             <button
@@ -1882,10 +1889,10 @@ export default function App() {
             </button>
             <button
               className="primary-button"
-              disabled={!parsed.result}
+              disabled={busy || !parsed.result}
               onClick={applyImport}
             >
-              {append ? "追加音符" : "替换当前曲谱"}
+              {midiResult ? "导入为新曲谱" : append ? "追加音符" : "替换当前曲谱"}
             </button>
           </footer>
         </Dialog>

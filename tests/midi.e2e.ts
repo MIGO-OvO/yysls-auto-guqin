@@ -1,5 +1,54 @@
 import { expect, test, type Page } from "@playwright/test";
 import { parseMidi } from "midi-file";
+import type { Workspace } from "../src/desktop";
+import { emptyScore, exportMidi } from "../src/score";
+
+test("imports a MIDI file as a separate score and keeps both scores after reload", async ({
+  page,
+}) => {
+  const melody = emptyScore();
+  melody.notes = [{ id: "a", midi: 64, col: 0, len: 2 }];
+
+  await page.goto("/");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const original = await page.evaluate(() => {
+    const workspace: Workspace = JSON.parse(
+      localStorage.getItem("qin-workspace")!,
+    );
+    return workspace.scores[0];
+  });
+
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "导入曲谱", exact: true }).click();
+  await (await chooser).setFiles({
+    name: "导入旋律.mid",
+    mimeType: "audio/midi",
+    buffer: Buffer.from(exportMidi(melody)),
+  });
+  const dialog = page.getByRole("dialog", { name: "导入曲谱" });
+  await expect(dialog.getByLabel("追加到当前曲谱末尾")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "导入为新曲谱" }).click();
+  await expect(page.getByLabel("曲谱名称")).toHaveValue("导入旋律");
+  await expect(page.locator(".score-item")).toHaveCount(2);
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByLabel("曲谱名称")).toHaveValue("导入旋律");
+  const workspace: Workspace = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("qin-workspace")!),
+  );
+  expect(workspace.activeId).not.toBe(original.id);
+  expect(workspace.scores).toEqual([
+    original,
+    expect.objectContaining({
+      id: workspace.activeId,
+      title: "导入旋律",
+      notes: [expect.objectContaining({ midi: 64, col: 0, len: 2 })],
+    }),
+  ]);
+  await page.getByRole("button", { name: original.title, exact: true }).click();
+  await expect(page.getByLabel("曲谱名称")).toHaveValue(original.title);
+});
 
 async function mockMidiDesktop(page: Page) {
   await page.addInitScript(() => {
