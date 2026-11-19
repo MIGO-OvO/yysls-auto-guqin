@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import PianoRoll, { type Tool } from "./PianoRoll";
 import MidiInputPanel from "./MidiInputPanel";
+import ScrollingTitle from "./ScrollingTitle";
 import type { MidiTake } from "./midi";
 import { PreviewAudio } from "./audio";
 import { instruments, isInstrument, type Instrument } from "./instruments";
@@ -60,10 +61,11 @@ import {
   importMidi,
   importText,
   pitches,
+  readMidiFile,
   schedule,
+  scoreMidiTake,
   stepMs,
   uid,
-  type ImportResult,
   type Note,
   type Score,
 } from "./score";
@@ -164,13 +166,17 @@ export default function App() {
   const [previewState, setPreviewState] = useState<
     "stopped" | "playing" | "paused"
   >("stopped");
+  const [previewStarting, setPreviewStarting] = useState(false);
   const [previewMs, setPreviewMs] = useState(0);
   const [hit, setHit] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [importValue, setImportValue] = useState("");
   const [importTitle, setImportTitle] = useState("导入的曲谱");
-  const [midiResult, setMidiResult] = useState<ImportResult | null>(null);
+  const [midiFile, setMidiFile] = useState<ReturnType<typeof readMidiFile> | null>(
+    null,
+  );
+  const [midiMode, setMidiMode] = useState<"original" | "smart">("smart");
   const [midiOpen, setMidiOpen] = useState(false);
   const [midiTake, setMidiTake] = useState<MidiTake | null>(null);
   const [midiPending, setMidiPending] = useState(false);
@@ -206,10 +212,18 @@ export default function App() {
     () => (score ? schedule(score, startCol) : { notes: [], durationMs: 0 }),
     [score, startCol],
   );
+  const fullPreview = useMemo(
+    () => (score ? scoreMidiTake(score) : { notes: [], durationMs: 0 }),
+    [score],
+  );
+  const previewPlan = useMemo(
+    () => (score && startCol > 0 ? scoreMidiTake(score, startCol) : fullPreview),
+    [score, startCol, fullPreview],
+  );
   const nativeActive = ["playing", "paused", "countdown"].includes(
     playback.status,
   );
-  const busy = nativeActive || previewState !== "stopped";
+  const busy = nativeActive || previewStarting || previewState !== "stopped";
   const note = score?.notes.find((n) => n.id === selected);
   const elapsed =
     nativeActive || playback.status === "finished"
@@ -217,11 +231,18 @@ export default function App() {
       : previewMs;
   const currentNote =
     previewState === "playing"
-      ? (plan.notes.find(
-          (n) => previewMs >= n.atMs && previewMs < n.atMs + n.holdMs,
+      ? (previewPlan.notes.find(
+          (n) => previewMs >= n.startMs && previewMs < n.endMs,
         )?.id ?? null)
       : playback.activeId;
-  const playCol = busy ? startCol + elapsed / stepMs(score) : null;
+  const playCol =
+    nativeActive || previewState !== "stopped"
+      ? startCol + elapsed / stepMs(score)
+      : null;
+  const durationMs =
+    nativeActive || playback.status === "finished"
+      ? plan.durationMs
+      : previewPlan.durationMs;
 
   const notify = useCallback((text: string) => setMessage(text), []);
   const safely = useCallback(
@@ -470,14 +491,18 @@ export default function App() {
     const tick = () => {
       const ms = audio.current.elapsedMs;
       setPreviewMs(ms);
-      if (ms >= plan.durationMs) {
+      if (ms >= previewPlan.durationMs) {
         audio.current.stop(true);
         setPreviewState("stopped");
+      } else if (!audio.current.running) {
+        audio.current.stop();
+        setPreviewState("paused");
+        notify("试听已中断，点击继续试听。");
       } else frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [previewState, plan.durationMs]);
+  }, [previewState, previewPlan.durationMs, notify]);
 
   function commit(next: Score) {
     if (!score || busy) return;
@@ -548,19 +573,23 @@ export default function App() {
   );
 
   async function togglePreview() {
-    if (nativeActive || !plan.notes.length) return;
+    if (nativeActive || previewStarting || !previewPlan.notes.length) return;
     if (previewState === "playing") {
       setPreviewMs(audio.current.elapsedMs);
       audio.current.stop();
       setPreviewState("paused");
     } else {
-      await audio.current.play(
-        score,
-        startCol,
-        previewState === "paused" ? previewMs : 0,
-      );
-      setPlayback(desktop.idlePlayback);
-      setPreviewState("playing");
+      setPreviewStarting(true);
+      try {
+        const offset = previewState === "paused" ? previewMs : 0;
+        if (await audio.current.playMidi(previewPlan, offset)) {
+          setPreviewMs(offset);
+          setPlayback(desktop.idlePlayback);
+          setPreviewState("playing");
+        }
+      } finally {
+        setPreviewStarting(false);
+      }
     }
   }
   async function stopAll() {
@@ -683,34 +712,38 @@ export default function App() {
       document.getElementById("file-input")?.click();
       return;
     }
-    const title = name.replace(/\.[^.]+$/, "");
-    setImportTitle(title);
+    const midi = /\.midi?$/i.test(name) ? readMidiFile(bytes) : null;
+    setImportValue(
+      midi ? "" : new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    );
+    setMidiFile(midi);
+    setMidiMode(midi?.fitsKeyboard ? "original" : "smart");
+    setImportTitle(name.replace(/\.[^.]+$/, ""));
     setAppend(false);
-    if (/\.midi?$/i.test(name)) {
-      setMidiResult(importMidi(bytes, title, score.timing));
-      setImportValue("");
-    } else {
-      setMidiResult(null);
-      setImportValue(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    }
     setImportOpen(true);
   }
   const parsed = useMemo(() => {
-    if (midiResult) return { result: midiResult, error: "" };
-    if (!score || !importValue.trim()) return { result: null, error: "" };
+    if (!importOpen || !score || (!midiFile && !importValue.trim()))
+      return { result: null, error: "" };
     try {
       return {
-        result: importText(importValue, importTitle, score.timing),
+        result: midiFile
+          ? importMidi(midiFile, importTitle, score.timing, midiMode)
+          : importText(importValue, importTitle, score.timing),
         error: "",
       };
     } catch (error) {
       return { result: null, error: errorText(error) };
     }
-  }, [importValue, importTitle, midiResult, score]);
+  }, [importOpen, importValue, importTitle, midiFile, midiMode, score?.timing]);
+  function closeImport() {
+    setImportOpen(false);
+    setMidiFile(null);
+  }
   function applyImport() {
     if (busy || !parsed.result) return;
     const imported = parsed.result.score;
-    if (midiResult) {
+    if (midiFile) {
       setScores((all) => [...all, imported]);
       choose(imported.id);
     } else {
@@ -719,7 +752,7 @@ export default function App() {
       setStartCol(0);
       setSelected(null);
     }
-    setImportOpen(false);
+    closeImport();
     notify(`已导入 ${imported.notes.length} 个音符`);
   }
   async function exportNow() {
@@ -852,7 +885,7 @@ export default function App() {
                   disabled={busy}
                 >
                   <Music2 size={18} />
-                  <strong>{s.title}</strong>
+                  <ScrollingTitle title={s.title} />
                 </button>
                 <div className="score-actions">
                   <IconButton
@@ -925,20 +958,25 @@ export default function App() {
                 <PanelLeftOpen size={18} />
               )}
             </IconButton>
-            <input
-              className="score-title"
-              value={score.title}
-              maxLength={100}
-              aria-label="曲谱名称"
-              disabled={busy}
-              onChange={(e) =>
-                setScores((all) =>
-                  all.map((s) =>
-                    s.id === score.id ? { ...s, title: e.target.value } : s,
-                  ),
-                )
-              }
-            />
+            <div className="score-title-field">
+              <input
+                className="score-title"
+                value={score.title}
+                title={score.title}
+                maxLength={100}
+                aria-label="曲谱名称"
+                disabled={busy}
+                onChange={(e) => {
+                  const title = e.target.value;
+                  setScores((all) =>
+                    all.map((s) => (s.id === score.id ? { ...s, title } : s)),
+                  );
+                }}
+              />
+              <span className="score-title-display" aria-hidden="true">
+                <ScrollingTitle key={score.id} title={score.title} />
+              </span>
+            </div>
             <span className="save-state">
               <Check size={12} />
               {saved ? "已保存" : storageOk ? "保存中" : "保存异常"}
@@ -949,7 +987,7 @@ export default function App() {
               className="quiet-button"
               onClick={() => {
                 setImportValue("");
-                setMidiResult(null);
+                setMidiFile(null);
                 setImportTitle("导入的曲谱");
                 setImportOpen(true);
               }}
@@ -1159,7 +1197,7 @@ export default function App() {
               y2={40}
             />
           </svg>
-          <span>{formatTime(schedule(score).durationMs)}</span>
+          <span>{formatTime(fullPreview.durationMs)}</span>
         </div>
         <section className="keyboard-section">
           <div className="keyboard-heading">
@@ -1236,7 +1274,12 @@ export default function App() {
             <button
               className={`preview-button ${previewState === "playing" ? "active" : ""}`}
               onClick={() => void safely(togglePreview)}
-              disabled={nativeActive || !plan.notes.length}
+              disabled={
+                nativeActive || previewStarting || !previewPlan.notes.length
+              }
+              title={
+                previewPlan.notes.length ? undefined : "从此处没有可试听的音符"
+              }
             >
               {previewState === "playing" ? (
                 <Pause size={17} />
@@ -1262,7 +1305,7 @@ export default function App() {
           </div>
           <div className="time-display">
             <strong>{formatTime(elapsed)}</strong>
-            <span>/ {formatTime(plan.durationMs)}</span>
+            <span>/ {formatTime(durationMs)}</span>
             <small>
               {playback.status === "countdown"
                 ? playback.message
@@ -1279,7 +1322,9 @@ export default function App() {
           </div>
           <button
             className="game-play"
-            disabled={!plan.notes.length || previewState === "playing"}
+            disabled={
+              !plan.notes.length || previewStarting || previewState === "playing"
+            }
             onClick={() => void safely(playGame)}
           >
             {nativeActive && playback.status !== "paused" ? (
@@ -1831,7 +1876,7 @@ export default function App() {
         </Dialog>
       )}
       {importOpen && (
-        <Dialog title="导入曲谱" close={() => setImportOpen(false)} wide>
+        <Dialog title="导入曲谱" close={closeImport} wide>
           <div className="dialog-content">
             <div className="import-source">
               <button
@@ -1841,8 +1886,28 @@ export default function App() {
                 <FolderOpen size={16} />
                 选择文件
               </button>
+              {midiFile && <span title={importTitle}>{importTitle}</span>}
             </div>
-            {!midiResult && (
+            {midiFile ? (
+              <label className="midi-import-mode">
+                导入方式
+                <select
+                  value={midiMode}
+                  onChange={(e) =>
+                    setMidiMode(
+                      e.target.value === "original" ? "original" : "smart",
+                    )
+                  }
+                >
+                  <option value="original" disabled={!midiFile.fitsKeyboard}>
+                    {midiFile.fitsKeyboard
+                      ? "原样导入（36 键）"
+                      : "原样导入（音域超出 36 键）"}
+                  </option>
+                  <option value="smart">智能适配（旋律优先）</option>
+                </select>
+              </label>
+            ) : (
               <textarea
                 className="import-text"
                 aria-label="导入内容"
@@ -1862,14 +1927,14 @@ export default function App() {
                 <strong>{parsed.result.score.notes.length} 个音符</strong>
                 <span>
                   {parsed.result.score.timing.bpm} BPM ·{" "}
-                  {formatTime(schedule(parsed.result.score).durationMs)}
+                  {formatTime(scoreMidiTake(parsed.result.score).durationMs)}
                 </span>
                 {parsed.result.warnings.map((w) => (
                   <p key={w}>{w}</p>
                 ))}
               </div>
             )}
-            {!midiResult && (
+            {!midiFile && (
               <label className="check-setting">
                 <span>追加到当前曲谱末尾</span>
                 <input
@@ -1883,7 +1948,7 @@ export default function App() {
           <footer>
             <button
               className="quiet-button"
-              onClick={() => setImportOpen(false)}
+              onClick={closeImport}
             >
               取消
             </button>
@@ -1892,7 +1957,7 @@ export default function App() {
               disabled={busy || !parsed.result}
               onClick={applyImport}
             >
-              {midiResult ? "导入为新曲谱" : append ? "追加音符" : "替换当前曲谱"}
+              {midiFile ? "导入为新曲谱" : append ? "追加音符" : "替换当前曲谱"}
             </button>
           </footer>
         </Dialog>
@@ -2013,8 +2078,9 @@ export default function App() {
             </p>
             <h3>导入与保存</h3>
             <p>
-              支持原项目 JSON、简谱、键位链、MIDI 与 TXT 命令。MIDI
-              结合音高、力度和声部连续性选择旋律，调整八度到 36 键并按网格量化。
+              支持原项目 JSON、简谱、键位链、MIDI 与 TXT 命令。36 键范围内的 MIDI
+              可原样导入，保留音高、和弦和时值。超出范围的 MIDI 可用智能适配选出旋律，
+              调整到 36 键并按网格量化。
               曲库自动保存在本机；导出 JSON
               可跨电脑保存。示例“山间清音”为内置原创练习旋律。
             </p>

@@ -2,6 +2,75 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { parseMidi } from "midi-file";
 
+test("recovers from a cancelled, blocked or interrupted audio start", async ({ page }) => {
+  await page.addInitScript(() => {
+    const OriginalContext = AudioContext;
+    Object.assign(window, { blockPreview: true });
+    window.AudioContext = class extends OriginalContext {
+      constructor() {
+        super();
+        Object.assign(window, { previewContext: this });
+      }
+      get state() {
+        return (window as any).blockPreview ? "suspended" : super.state;
+      }
+      async resume() {
+        if ((window as any).blockPreview) {
+          await new Promise<void>((resolve) => {
+            Object.assign(window, { resumePreview: resolve });
+          });
+        }
+        await super.resume();
+      }
+      createDynamicsCompressor() {
+        const compressor = super.createDynamicsCompressor();
+        const meter = this.createAnalyser();
+        compressor.connect(meter);
+        Object.assign(window, { previewMeter: meter });
+        return compressor;
+      }
+    };
+  });
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "试听 Space", exact: true });
+  const playing = page.getByRole("button", { name: "暂停试听 Space", exact: true });
+  const resume = page.getByRole("button", { name: "继续试听 Space", exact: true });
+  await start.click();
+  await page.waitForFunction(() => typeof (window as any).resumePreview === "function");
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    (window as any).blockPreview = false;
+    (window as any).resumePreview();
+  });
+  await expect(start).toBeEnabled();
+  await expect(playing).toHaveCount(0);
+
+  await page.evaluate(() => { (window as any).blockPreview = true; });
+  await start.click();
+  await expect(page.getByRole("status")).toContainText("试听音频未启动，请重试。");
+  await expect(start).toBeEnabled();
+  await page.evaluate(() => {
+    (window as any).blockPreview = false;
+    (window as any).resumePreview();
+  });
+
+  const hearNotes = () =>
+    page.waitForFunction(() => {
+      const meter: AnalyserNode = (window as any).previewMeter;
+      const data = new Float32Array(meter.fftSize);
+      meter.getFloatTimeDomainData(data);
+      return data.some((sample) => Math.abs(sample) > 0.005);
+    });
+  await start.click();
+  await expect(playing).toBeVisible();
+  await hearNotes();
+  await page.evaluate(() => (window as any).previewContext.suspend());
+  await expect(resume).toBeVisible();
+  await resume.click();
+  await expect(playing).toBeVisible();
+  await hearNotes();
+});
+
 test("selects and persists instruments, shares the selection with recording and exports a real MIDI", async ({
   page,
 }) => {
@@ -217,8 +286,8 @@ test("limits look-ahead work and releases live notes by channel and sustain peda
       notes: [{ midi: 60, channel: 0, velocity: 100, startMs: 0, endMs: 500 }],
     });
     audio.stop();
-    await starting;
-    const cancelled = audio.pending.length === 0 && audio.timer === null;
+    const cancelled =
+      !(await starting) && audio.pending.length === 0 && audio.timer === null;
     for (let i = 0; i < 70; i++) audio.tone(60, 0.2);
     const bounded = audio.voices.size <= 64;
     audio.dispose();

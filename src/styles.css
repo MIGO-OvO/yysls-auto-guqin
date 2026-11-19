@@ -159,10 +159,11 @@ kbd {
   white-space: nowrap;
 }
 .app {
+  --library-width: 248px;
   height: 100dvh;
   min-height: 560px;
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr) 264px;
+  grid-template-columns: var(--library-width) minmax(0, 1fr) 264px;
   grid-template-rows: 48px minmax(0, 1fr) 26px;
   overflow: hidden;
 }
@@ -312,12 +313,32 @@ kbd {
   flex-shrink: 0;
   color: var(--accent);
 }
-.score-item strong {
+.scrolling-title {
   min-width: 0;
   display: block;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+.scrolling-title > span {
+  display: inline-block;
+  vertical-align: top;
+}
+.scrolling-title[data-overflow] > span {
+  animation: scroll-title var(--title-duration) ease-in-out infinite alternate;
+}
+.score-select:hover .scrolling-title > span,
+.score-title-field:hover .scrolling-title > span {
+  animation-play-state: paused;
+}
+@keyframes scroll-title {
+  0%, 15% {
+    transform: translateX(0);
+  }
+  85%, 100% {
+    transform: translateX(var(--title-offset));
+  }
+}
+.score-select .scrolling-title {
   font-size: 12px;
   font-weight: 500;
 }
@@ -406,19 +427,42 @@ kbd {
 }
 .score-title-group {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
-.score-title {
-  width: 174px;
+.score-title-field {
+  position: relative;
+  flex: 1;
   min-width: 0;
-  background: transparent;
-  border: 1px solid transparent;
   font-family: "Noto Serif SC", "Songti SC", serif;
   font-size: 20px;
   font-weight: 600;
+}
+.score-title {
+  display: block;
+  width: 100%;
+  color: transparent;
+  background: transparent;
+  border: 1px solid transparent;
   padding: 4px 0;
+}
+.score-title-display {
+  position: absolute;
+  inset: 1px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.score-title-display .scrolling-title {
+  width: 100%;
+}
+.score-title:focus {
+  color: var(--text);
+}
+.score-title:focus + .score-title-display {
+  visibility: hidden;
 }
 .score-title:hover,
 .score-title:focus {
@@ -440,6 +484,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 .quiet-button {
   display: inline-flex;
@@ -1345,7 +1390,7 @@ progress {
   padding: 0;
 }
 .inspector-collapsed {
-  grid-template-columns: 216px minmax(0, 1fr) 0;
+  grid-template-columns: var(--library-width) minmax(0, 1fr) 0;
 }
 .inspector-collapsed .inspector {
   visibility: hidden;
@@ -1406,8 +1451,21 @@ dialog > footer {
   margin-bottom: 15px;
 }
 .import-source > span {
-  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
+}
+.import-source > button {
+  flex-shrink: 0;
+}
+.midi-import-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.midi-import-mode select {
+  padding: 6px 8px;
 }
 .import-text {
   width: 100%;
@@ -1647,13 +1705,14 @@ dialog > footer {
 
 @media (max-width: 1250px) {
   .app {
-    grid-template-columns: 184px minmax(0, 1fr) 236px;
+    --library-width: 208px;
+    grid-template-columns: var(--library-width) minmax(0, 1fr) 236px;
   }
   .library-collapsed {
     grid-template-columns: 0 minmax(0, 1fr) 236px;
   }
   .inspector-collapsed {
-    grid-template-columns: 184px minmax(0, 1fr) 0;
+    grid-template-columns: var(--library-width) minmax(0, 1fr) 0;
   }
   .library-collapsed.inspector-collapsed {
     grid-template-columns: 0 minmax(0, 1fr) 0;
@@ -1664,11 +1723,7 @@ dialog > footer {
   .inspector-heading {
     padding: 0 17px;
   }
-  .score-item strong {
-    max-width: 110px;
-  }
-  .score-title {
-    width: 150px;
+  .score-title-field {
     font-size: 18px;
   }
   .save-state {
@@ -1723,7 +1778,8 @@ dialog > footer {
 }
 @media (max-width: 1030px) {
   .app {
-    grid-template-columns: 164px minmax(0, 1fr) 0;
+    --library-width: 180px;
+    grid-template-columns: var(--library-width) minmax(0, 1fr) 0;
   }
   .inspector {
     position: fixed;
@@ -1741,7 +1797,7 @@ dialog > footer {
     grid-template-columns: 0 minmax(0, 1fr) 0;
   }
   .inspector-collapsed {
-    grid-template-columns: 164px minmax(0, 1fr) 0;
+    grid-template-columns: var(--library-width) minmax(0, 1fr) 0;
   }
   .library-collapsed.inspector-collapsed {
     grid-template-columns: 0 minmax(0, 1fr) 0;
@@ -1787,6 +1843,13 @@ dialog > footer {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .scrolling-title {
+    text-overflow: ellipsis;
+  }
+  .scrolling-title[data-overflow] > span {
+    animation: none;
+    display: inline;
+  }
   *,
   *::before,
   *::after {

@@ -2,6 +2,7 @@ import { parseMidi } from "midi-file";
 import {
   adaptMidi,
   exportMidiTake,
+  validateTake,
   type MidiConversion,
   type MidiNote,
   type MidiTake,
@@ -222,28 +223,33 @@ export function appendScore(score: Score, imported: Score): Score {
   };
 }
 
-export function exportMidi(score: Score, program = 0): Uint8Array {
+export function scoreMidiTake(score: Score, startCol = 0) {
   const step = stepMs(score);
   const notes = sorted(score)
-    .filter((n) => n.midi !== null)
+    .filter((n) => n.midi !== null && n.col + n.len > startCol)
     .map((n) => ({
+      id: n.id,
       midi: n.midi!,
       channel: 0,
       velocity: 100,
-      startMs: n.col * step,
-      endMs: (n.col + n.len) * step,
+      startMs: Math.max(0, n.col - startCol) * step,
+      endMs: (n.col + n.len - startCol) * step,
     }));
-  if (!notes.length) throw new Error("曲谱中没有可导出的音符");
-  return exportMidiTake(
-    {
-      notes,
-      durationMs: notes.reduce(
-        (end, n) => Math.max(end, n.endMs),
-        (score.endCol ?? 0) * step,
-      ),
-    },
-    { bpm: score.timing.bpm, name: score.title, program },
+  const durationMs = notes.reduce(
+    (end, n) => Math.max(end, n.endMs),
+    Math.max(0, (score.endCol ?? 0) - startCol) * step,
   );
+  return { notes, durationMs };
+}
+
+export function exportMidi(score: Score, program = 0): Uint8Array {
+  const take = scoreMidiTake(score);
+  if (!take.notes.length) throw new Error("曲谱中没有可导出的音符");
+  return exportMidiTake(take, {
+    bpm: score.timing.bpm,
+    name: score.title,
+    program,
+  });
 }
 
 export function exportJson(score: Score): string {
@@ -439,12 +445,7 @@ export function importText(
   return { score, warnings: [] };
 }
 
-export function importMidi(
-  bytes: Uint8Array,
-  title: string,
-  timing: Timing,
-  conversion: MidiConversion = "smart",
-): ImportResult {
+export function readMidiFile(bytes: Uint8Array) {
   if (bytes.length > 20 * 1024 * 1024) throw new Error("MIDI 文件超过 20MB");
   const data = parseMidi(bytes);
   if (data.header.format === 2)
@@ -460,6 +461,7 @@ export function importMidi(
     track: number;
   }[] = [];
   const tempos: { tick: number; us: number }[] = [{ tick: 0, us: 500000 }];
+  let lastTick = 0;
   for (const [trackIndex, track] of data.tracks.entries()) {
     let tick = 0;
     const open = new Map<
@@ -503,6 +505,7 @@ export function importMidi(
           ...n,
           end: Math.max(n.tick + division / 4, tick),
         });
+    lastTick = Math.max(lastTick, tick);
   }
   if (!raw.length) throw new Error("MIDI 中没有旋律音符（打击乐通道不导入）");
   if (raw.length > 100000) throw new Error("MIDI 超过 100000 个音符");
@@ -510,14 +513,10 @@ export function importMidi(
   const tempoMap = tempos.filter(
     (t, i) => i === tempos.length - 1 || tempos[i + 1].tick !== t.tick,
   );
-  const initialBpm = Math.max(
+  const bpm = Math.max(
     30,
-    Math.min(300, Math.round(60000000 / tempoMap[0].us)),
+    Math.min(300, 60000000 / tempoMap[0].us),
   );
-  const score = {
-    ...emptyScore(title),
-    timing: { ...timing, bpm: initialBpm },
-  };
   const tempoTimes = [0];
   for (let i = 1; i < tempoMap.length; i++)
     tempoTimes.push(
@@ -539,19 +538,65 @@ export function importMidi(
       (((tick - tempoMap[low].tick) / division) * tempoMap[low].us) / 1000
     );
   };
-  const notes: MidiNote[] = raw.map((n) => ({
-    ...n,
-    startMs: toMs(n.tick),
-    endMs: Math.max(toMs(n.tick) + 1, toMs(n.end)),
-  }));
-  const durationMs = notes.reduce((end, n) => Math.max(end, n.endMs), 0);
+  const notes: MidiNote[] = raw.map(({ tick, end, ...note }) => {
+    const startMs = toMs(tick);
+    const endMs = toMs(end);
+    return { ...note, startMs, endMs: endMs > startMs ? endMs : startMs + 1 };
+  });
+  const durationMs = notes.reduce(
+    (end, n) => Math.max(end, n.endMs),
+    toMs(lastTick),
+  );
+  return {
+    take: { notes, durationMs },
+    bpm,
+    tempoChanges: tempoMap.length > 1,
+    fitsKeyboard: notes.every((n) => pitchOf(n.midi) !== undefined),
+  };
+}
+
+export function importMidi(
+  source: Uint8Array | ReturnType<typeof readMidiFile>,
+  title: string,
+  timing: Timing,
+  conversion: MidiConversion | "original" = "smart",
+): ImportResult {
+  const file = source instanceof Uint8Array ? readMidiFile(source) : source;
+  if (conversion === "original") {
+    if (!file.fitsKeyboard)
+      throw new Error("有音符超出 36 键范围，请选择智能适配。");
+    validateTake(file.take);
+    const score = {
+      ...emptyScore(title),
+      timing: { ...timing, bpm: Number(file.bpm.toFixed(2)) },
+    };
+    const step = stepMs(score);
+    score.endCol = file.take.durationMs / step;
+    number(score.endCol, 0, 1000000, "曲尾");
+    score.cols = Math.max(32, Math.ceil(score.endCol / 16) * 16);
+    score.notes = file.take.notes.map((note) => ({
+      id: uid(),
+      midi: note.midi,
+      col: note.startMs / step,
+      len: number(
+        (note.endMs - note.startMs) / step,
+        Number.MIN_VALUE,
+        32000,
+        "音长",
+      ),
+    }));
+    return {
+      score,
+      warnings: ["保留原音高、和弦和时值。", ...chordWarnings(score)],
+    };
+  }
   const result = importMidiTake(
-    { notes, durationMs },
+    file.take,
     title,
-    score.timing,
+    { ...timing, bpm: Math.round(file.bpm) },
     conversion,
   );
-  if (tempoMap.length > 1)
+  if (file.tempoChanges)
     result.warnings.push("MIDI 速度变化已换算为网格时间。");
   return result;
 }

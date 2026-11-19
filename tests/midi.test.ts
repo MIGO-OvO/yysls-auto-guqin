@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMidi } from "midi-file";
+import { parseMidi, writeMidi } from "midi-file";
 import {
   adaptMidi,
   exportMidiTake,
@@ -11,7 +11,9 @@ import {
   exportMidi,
   importMidi,
   importMidiTake,
+  readMidiFile,
   schedule,
+  scoreMidiTake,
 } from "../src/score";
 
 const note = (
@@ -29,6 +31,46 @@ const note = (
 const take = (notes: MidiNote[]): MidiTake => ({
   notes,
   durationMs: notes.reduce((end, n) => Math.max(end, n.endMs), 0),
+});
+
+describe("direct 36-key MIDI import", () => {
+  it("keeps chords, fractional timing, tempo changes and trailing rests", () => {
+    const file = readMidiFile(Uint8Array.from(writeMidi({
+      header: { format: 0, numTracks: 1, ticksPerBeat: 480 },
+      tracks: [[
+        { deltaTime: 48, type: "noteOn", channel: 0, noteNumber: 48, velocity: 88 },
+        { deltaTime: 0, type: "noteOn", channel: 0, noteNumber: 83, velocity: 100 },
+        { deltaTime: 96, type: "setTempo", meta: true, microsecondsPerBeat: 1000000 },
+        { deltaTime: 48, type: "noteOff", channel: 0, noteNumber: 83, velocity: 0 },
+        { deltaTime: 96, type: "noteOff", channel: 0, noteNumber: 48, velocity: 0 },
+        { deltaTime: 48, type: "endOfTrack", meta: true },
+      ]],
+    })));
+    expect(file.fitsKeyboard).toBe(true);
+    const timing = emptyScore().timing;
+    const result = importMidi(file, "original", timing, "original");
+    const preview = scoreMidiTake(result.score);
+    expect(preview.notes.map(({ midi, startMs, endMs }) => ({ midi, startMs, endMs })))
+      .toEqual([
+        { midi: 83, startMs: 50, endMs: 250 },
+        { midi: 48, startMs: 50, endMs: 450 },
+      ]);
+    expect(preview.durationMs).toBe(550);
+    expect(scoreMidiTake(result.score, 1).notes).toMatchObject([
+      { midi: 48, startMs: 0, endMs: 200 },
+    ]);
+    expect(importMidi(file, "smart", timing, "smart").score.notes).toHaveLength(1);
+    expect(schedule(result.score).notes.map((n) => n.midi)).toEqual([83]);
+  });
+
+  it("requires adaptation for pitches outside the 36 keys", () => {
+    const file = readMidiFile(exportMidiTake(take([note(47), note(84, 250)])));
+    const timing = emptyScore().timing;
+    expect(file.fitsKeyboard).toBe(false);
+    expect(() => importMidi(file, "original", timing, "original")).toThrow("超出 36 键");
+    expect(importMidi(file, "smart", timing).score.notes.map((n) => n.midi))
+      .toEqual([59, 72]);
+  });
 });
 
 describe("score MIDI export", () => {

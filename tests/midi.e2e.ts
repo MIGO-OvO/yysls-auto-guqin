@@ -7,7 +7,10 @@ test("imports a MIDI file as a separate score and keeps both scores after reload
   page,
 }) => {
   const melody = emptyScore();
-  melody.notes = [{ id: "a", midi: 64, col: 0, len: 2 }];
+  melody.notes = [
+    { id: "a", midi: 64, col: 0, len: 2 },
+    { id: "b", midi: 67, col: 0, len: 1.25 },
+  ];
 
   await page.goto("/");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
@@ -26,6 +29,12 @@ test("imports a MIDI file as a separate score and keeps both scores after reload
     buffer: Buffer.from(exportMidi(melody)),
   });
   const dialog = page.getByRole("dialog", { name: "导入曲谱" });
+  const mode = dialog.getByRole("combobox", { name: "导入方式" });
+  await expect(mode).toHaveValue("original");
+  await expect(dialog.getByText("2 个音符", { exact: true })).toBeVisible();
+  await mode.selectOption("smart");
+  await expect(dialog.getByText("1 个音符", { exact: true })).toBeVisible();
+  await mode.selectOption("original");
   await expect(dialog.getByLabel("追加到当前曲谱末尾")).toHaveCount(0);
   await dialog.getByRole("button", { name: "导入为新曲谱" }).click();
   await expect(page.getByLabel("曲谱名称")).toHaveValue("导入旋律");
@@ -43,7 +52,10 @@ test("imports a MIDI file as a separate score and keeps both scores after reload
     expect.objectContaining({
       id: workspace.activeId,
       title: "导入旋律",
-      notes: [expect.objectContaining({ midi: 64, col: 0, len: 2 })],
+      notes: [
+        expect.objectContaining({ midi: 67, col: 0, len: 1.25 }),
+        expect.objectContaining({ midi: 64, col: 0, len: 2 }),
+      ],
     }),
   ]);
   await page.getByRole("button", { name: original.title, exact: true }).click();

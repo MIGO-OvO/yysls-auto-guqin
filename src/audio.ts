@@ -1,4 +1,3 @@
-import { schedule, type Score } from "./score";
 import type { MidiNote, MidiTake } from "./midi";
 import { synthesize, type Instrument, type SynthVoice } from "./instruments";
 
@@ -6,6 +5,7 @@ import { synthesize, type Instrument, type SynthVoice } from "./instruments";
 export class PreviewAudio {
   private context: AudioContext | null = null;
   private voices = new Set<SynthVoice>();
+  private fading = new Set<SynthVoice>();
   private held = new Map<string, { voice: SynthVoice; released: boolean }>();
   private pedal = new Set<number>();
   private startedAt = 0;
@@ -19,6 +19,9 @@ export class PreviewAudio {
   private cursor = 0;
   private epoch = 0;
 
+  get running() {
+    return this.context?.state === "running";
+  }
   get volume() {
     return this.level;
   }
@@ -50,20 +53,31 @@ export class PreviewAudio {
       this.master.connect(limiter);
       limiter.connect(this.context.destination);
     }
-    if (this.context.state !== "running") await this.context.resume();
+    if (this.running) return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.context.resume(),
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(resolve, 1500);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!this.running) throw new Error("试听音频未启动，请重试。");
   }
 
   tone(midi: number, seconds = 0.7, at?: number, velocity = 0.8) {
     const context = this.context;
     if (!context || !this.master) return;
-    for (const voice of this.voices) {
-      if (voice.ended) this.voices.delete(voice);
-    }
-    // Bound native nodes even for dense full-range recordings.
+    const when = at ?? context.currentTime + 0.005;
+    // Release the oldest voice at the next onset, including queued notes.
     if (this.voices.size >= 64) {
       const oldest = this.voices.values().next().value!;
-      oldest.release(context.currentTime, 0.015);
+      oldest.release(when, 0.015);
       this.voices.delete(oldest);
+      this.fading.add(oldest);
     }
     const voice = synthesize(
       context,
@@ -71,10 +85,14 @@ export class PreviewAudio {
       this.timbre,
       midi,
       velocity,
-      at ?? context.currentTime + 0.005,
+      when,
       seconds,
     );
     this.voices.add(voice);
+    voice.onended = () => {
+      this.voices.delete(voice);
+      this.fading.delete(voice);
+    };
     return voice;
   }
 
@@ -142,10 +160,15 @@ export class PreviewAudio {
     }
   };
 
-  private async start(notes: MidiNote[], durationMs: number, offsetMs: number) {
+  async playMidi({ notes, durationMs }: MidiTake, offsetMs = 0) {
     const request = ++this.epoch;
-    await this.unlock();
-    if (request !== this.epoch) return;
+    try {
+      await this.unlock();
+    } catch (error) {
+      if (request !== this.epoch) return false;
+      throw error;
+    }
+    if (request !== this.epoch) return false;
     this.stop();
     this.startedAt = this.context!.currentTime + 0.04;
     this.offset = offsetMs;
@@ -153,25 +176,10 @@ export class PreviewAudio {
     this.pending = notes
       .filter((n) => n.channel !== 9 && n.endMs > offsetMs)
       .sort((a, b) => a.startMs - b.startMs);
-    this.timer = setInterval(this.pump, 50);
     this.pump();
-  }
-
-  async play(score: Score, startCol: number, offsetMs = 0) {
-    const plan = schedule(score, startCol);
-    await this.start(
-      plan.notes
-        .filter((n) => n.midi !== null)
-        .map((n) => ({
-          midi: n.midi!,
-          channel: 0,
-          velocity: 100,
-          startMs: n.atMs,
-          endMs: n.atMs + n.holdMs,
-        })),
-      plan.durationMs,
-      offsetMs,
-    );
+    if (this.cursor < this.pending.length)
+      this.timer = setInterval(this.pump, 50);
+    return true;
   }
 
   get elapsedMs() {
@@ -184,17 +192,16 @@ export class PreviewAudio {
       ),
     );
   }
-  async playMidi(take: MidiTake) {
-    await this.start(take.notes, take.durationMs, 0);
-  }
   stop(natural = false) {
     this.epoch++;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.pending = [];
-    for (const voice of this.voices)
-      voice.release(undefined, natural ? undefined : 0.02);
-    this.voices.clear();
+    for (const voices of [this.voices, this.fading]) {
+      for (const voice of voices)
+        voice.release(undefined, natural ? undefined : 0.02);
+      voices.clear();
+    }
     this.held.clear();
     this.pedal.clear();
   }

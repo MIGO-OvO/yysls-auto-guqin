@@ -1,5 +1,40 @@
 import { expect, test } from "@playwright/test";
 
+test("uses the available title width and scrolls only overflowing names", async ({ page }) => {
+  await page.goto("/");
+  const name = page.getByLabel("曲谱名称");
+  const title = page.locator(".score-title-display .scrolling-title");
+  const libraryTitle = page.locator(".score-select .scrolling-title");
+  await expect(title).not.toHaveAttribute("data-overflow");
+
+  const longName = "江湖琴谱".repeat(22) + "终章";
+  await name.fill(longName);
+  await name.press("Tab");
+  await expect(name).toHaveValue(longName);
+  await expect(title).toHaveAttribute("data-overflow", "");
+  await expect(libraryTitle).toHaveAttribute("data-overflow", "");
+  for (const label of [title, libraryTitle]) {
+    const scroll = await label.evaluate((frame) => {
+      const text = frame.firstElementChild!;
+      const animation = text.getAnimations()[0];
+      animation.pause();
+      animation.currentTime = Number(animation.effect!.getTiming().duration) * 0.85;
+      return {
+        width: frame.clientWidth,
+        right: text.getBoundingClientRect().right - frame.getBoundingClientRect().right,
+      };
+    });
+    expect(Math.abs(scroll.right)).toBeLessThan(2);
+    expect(scroll.width).toBeGreaterThan(label === title ? 500 : 105);
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(title.locator("> span")).toHaveCSS("animation-name", "none");
+  await expect(name).toHaveAttribute("title", longName);
+  await page.setViewportSize({ width: 900, height: 640 });
+  await page.getByRole("button", { name: "关闭演奏面板", exact: true }).click();
+  await expect(name).toBeInViewport();
+});
+
 test("migrates an existing dark workspace to beige once and preserves later choices", async ({
   page,
 }) => {

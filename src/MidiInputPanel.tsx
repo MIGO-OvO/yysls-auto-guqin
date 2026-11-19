@@ -12,7 +12,7 @@ import {
 import {
   formatTime,
   importMidiTake,
-  schedule,
+  scoreMidiTake,
   type Score,
   type Timing,
 } from "./score";
@@ -81,6 +81,10 @@ export default function MidiInputPanel({
       return { result: null, error: errorText(e) };
     }
   }, [take, title, timing, tempo, grid, mode]);
+  const adapted = useMemo(
+    () => parsed.result && scoreMidiTake(parsed.result.score),
+    [parsed.result],
+  );
 
   async function act(work: () => Promise<void>) {
     setPending(true);
@@ -188,17 +192,16 @@ export default function MidiInputPanel({
     const timer = setInterval(() => {
       if (recording) setElapsed(performance.now() - recordingAt.current);
       else if (preview !== "none") {
-        const duration =
-          preview === "raw"
-            ? take!.durationMs
-            : parsed.result
-              ? schedule(parsed.result.score).durationMs
-              : 0;
+        const duration = (preview === "raw" ? take : adapted)?.durationMs ?? 0;
         if (audio.current.elapsedMs >= duration) stopAudio(true);
+        else if (!audio.current.running) {
+          stopAudio();
+          setError("试听已中断，请重新播放。");
+        }
       }
     }, 100);
     return () => clearInterval(timer);
-  }, [recording, preview, take, parsed.result]);
+  }, [recording, preview, take, adapted]);
   useEffect(() => {
     stopAudio();
   }, [mode, tempo, grid]);
@@ -379,7 +382,7 @@ export default function MidiInputPanel({
                   </strong>
                   <span>
                     36 键 ·{" "}
-                    {formatTime(schedule(parsed.result.score).durationMs)}
+                    {formatTime(adapted?.durationMs ?? 0)}
                   </span>
                 </div>
                 <svg
@@ -410,11 +413,9 @@ export default function MidiInputPanel({
                           if (preview === kind) stopAudio();
                           else {
                             stopAudio();
-                            if (kind === "raw")
-                              await audio.current.playMidi(take);
-                            else
-                              await audio.current.play(parsed.result!.score, 0);
-                            setPreview(kind);
+                            const source = kind === "raw" ? take : adapted;
+                            if (source && (await audio.current.playMidi(source)))
+                              setPreview(kind);
                           }
                         })
                       }

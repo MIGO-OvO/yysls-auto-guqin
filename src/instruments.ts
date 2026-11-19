@@ -136,8 +136,8 @@ function noiseBuffer(context: BaseAudioContext) {
 }
 
 export interface SynthVoice {
+  onended?: () => void;
   release: (at?: number, seconds?: number) => void;
-  ended: boolean;
 }
 
 // Independent modal approximation: stiff-string modes, frequency-dependent
@@ -191,10 +191,10 @@ export function synthesize(
   );
 
   let endAt = Infinity;
+  let finished = false;
   const voice: SynthVoice = {
-    ended: false,
     release(at = context.currentTime, release = model.release) {
-      if (voice.ended || at + release >= endAt) return;
+      if (finished || at + release >= endAt) return;
       endAt = at + release;
       gate.gain.cancelAndHoldAtTime(at);
       gate.gain.setTargetAtTime(0, at, Math.max(0.001, release / 6));
@@ -207,8 +207,9 @@ export function synthesize(
     nodes.push(source);
     source.onended = () => {
       if (++ended === sources.length) {
-        voice.ended = true;
+        finished = true;
         for (const node of nodes) node.disconnect();
+        voice.onended?.();
       }
     };
     source.start(when);
